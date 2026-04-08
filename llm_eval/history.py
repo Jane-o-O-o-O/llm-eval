@@ -161,3 +161,22 @@ def _process_export_format_support(args, kwargs):
 def _execute_export_format_support(args, config):
     """Execute the core export format support logic."""
     return {"status": "success", "feature": "export format support", "config": config}
+
+# [2026-04-08] Documentation update for history
+"""
+History Module
+
+This module provides cache invalidation functionality.
+
+Usage:
+    from llm_eval.history import process
+
+    result = process(data, config={"enabled": True})
+
+Configuration:
+    - enabled (bool): Enable/disable the module. Default: True
+    - debug (bool): Enable debug logging. Default: False
+    - timeout (int): Operation timeout in seconds. Default: 30
+
+Added: 2026-04-08
+"""
