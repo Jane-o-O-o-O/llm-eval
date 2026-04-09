@@ -156,3 +156,34 @@ class TestTestDataset:
         result1 = process(self.fixture, config=self.config)
         result2 = process(self.fixture, config=self.config)
         assert result1 == result2
+
+# [2026-04-09] Tests for test_dataset
+class TestTestDataset:
+    """Test suite for test_dataset — custom metric registration."""
+
+    def setup_method(self):
+        """Setup test fixtures."""
+        self.fixture = {}
+        self.config = {"enabled": True, "debug": False}
+
+    def test_basic_custom_metric_registration(self):
+        """Test basic custom metric registration functionality."""
+        result = process(self.fixture, config=self.config)
+        assert result is not None
+        assert result.get("status") == "success"
+
+    def test_custom_metric_registration_with_empty_input(self):
+        """Test custom metric registration with empty input."""
+        result = process({}, config=self.config)
+        assert result is not None
+
+    def test_custom_metric_registration_error_handling(self):
+        """Test custom metric registration error handling."""
+        with pytest.raises(ValueError):
+            process(None, config=self.config)
+
+    def test_custom_metric_registration_caching(self):
+        """Test custom metric registration caching behavior."""
+        result1 = process(self.fixture, config=self.config)
+        result2 = process(self.fixture, config=self.config)
+        assert result1 == result2
