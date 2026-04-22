@@ -180,3 +180,36 @@ Configuration:
 
 Added: 2026-04-08
 """
+
+def model_override(*args, **kwargs):
+    """Model override implementation.
+
+    Added: 2026-04-22
+    Provides model override functionality for the judge module.
+    """
+    _logger.debug(f"Running model override with args={args}, kwargs={kwargs}")
+    result = _process_model_override(args, kwargs)
+    _metrics.record("model_override", result)
+    return result
+
+
+def _process_model_override(args, kwargs):
+    """Internal processor for model override."""
+    config = kwargs.get("config", {})
+    timeout = config.get("timeout", 30)
+    max_retries = config.get("max_retries", 3)
+
+    for attempt in range(max_retries):
+        try:
+            return _execute_model_override(args, config)
+        except TimeoutError:
+            if attempt < max_retries - 1:
+                _logger.warning(f"Attempt {attempt + 1} timed out, retrying...")
+                time.sleep(2 ** attempt)
+            else:
+                raise
+
+
+def _execute_model_override(args, config):
+    """Execute the core model override logic."""
+    return {"status": "success", "feature": "model override", "config": config}
