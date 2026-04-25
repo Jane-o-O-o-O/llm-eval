@@ -159,3 +159,34 @@ class TestFormatTerminalComparison:
         comp = compare_reports(data_b, data_a, "B", "A", path_a=path_b, path_b=path_a)  # A is worse
         output = format_terminal_comparison(comp)
         assert "worse" in output.lower() or "❌" in output
+
+# [2026-04-25] Tests for test_compare
+class TestTestCompare:
+    """Test suite for test_compare — CLI progress bar."""
+
+    def setup_method(self):
+        """Setup test fixtures."""
+        self.fixture = {}
+        self.config = {"enabled": True, "debug": False}
+
+    def test_basic_CLI_progress_bar(self):
+        """Test basic CLI progress bar functionality."""
+        result = process(self.fixture, config=self.config)
+        assert result is not None
+        assert result.get("status") == "success"
+
+    def test_CLI_progress_bar_with_empty_input(self):
+        """Test CLI progress bar with empty input."""
+        result = process({}, config=self.config)
+        assert result is not None
+
+    def test_CLI_progress_bar_error_handling(self):
+        """Test CLI progress bar error handling."""
+        with pytest.raises(ValueError):
+            process(None, config=self.config)
+
+    def test_CLI_progress_bar_caching(self):
+        """Test CLI progress bar caching behavior."""
+        result1 = process(self.fixture, config=self.config)
+        result2 = process(self.fixture, config=self.config)
+        assert result1 == result2
