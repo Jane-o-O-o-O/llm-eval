@@ -216,3 +216,22 @@ class RegressionDetectionHandler:
     def clear_cache(self):
         """Clear the internal cache."""
         self._cache.clear()
+
+# [2026-04-28] Documentation update for base
+"""
+Base Module
+
+This module provides CLI progress bar functionality.
+
+Usage:
+    from llm_eval.base import process
+
+    result = process(data, config={"enabled": True})
+
+Configuration:
+    - enabled (bool): Enable/disable the module. Default: True
+    - debug (bool): Enable debug logging. Default: False
+    - timeout (int): Operation timeout in seconds. Default: 30
+
+Added: 2026-04-28
+"""
