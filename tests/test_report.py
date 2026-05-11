@@ -116,7 +116,7 @@ class TestHtmlReport:
         assert "Overall Score" in report
         assert "Passed" in report
         assert "Failed" in report
-        assert "Pass Rate" in report
+        assert "Threshold" in report
 
     def test_contains_metric_table(self) -> None:
         results = _make_results()
