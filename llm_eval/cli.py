@@ -13,7 +13,7 @@ import yaml
 from llm_eval.dataset import load_jsonl
 from llm_eval.evaluator import Evaluator
 from llm_eval.models import EvalConfig
-from llm_eval.report import format_csv_report, format_json_report, format_terminal_report
+from llm_eval.report import format_csv_report, format_html_report, format_json_report, format_terminal_report
 
 
 INIT_CONFIG_TEMPLATE = """\
@@ -66,7 +66,7 @@ def init(output: str) -> None:
 
 @main.command()
 @click.option("--config", "-c", "config_path", required=True, help="Path to eval config YAML.")
-@click.option("--output", "-o", "output_format", default=None, help="Output format: terminal, json, csv.")
+@click.option("--output", "-o", "output_format", default=None, help="Output format: terminal, json, csv, html.")
 @click.option("--report", "-r", "report_path", default=None, help="Write report to file.")
 @click.option("--threshold", "-t", type=float, default=None, help="Override pass/fail threshold.")
 def run(
@@ -150,6 +150,8 @@ def _format_report(fmt: str, results, summary) -> str:
         return format_json_report(results, summary)
     elif fmt == "csv":
         return format_csv_report(results)
+    elif fmt == "html":
+        return format_html_report(results, summary)
     else:
         return format_terminal_report(results, summary)
 

@@ -94,10 +94,16 @@ def get_default_registry() -> MetricRegistry:
     """
     from llm_eval.metrics.faithfulness import FaithfulnessMetric
     from llm_eval.metrics.answer_relevancy import AnswerRelevancyMetric
+    from llm_eval.metrics.context_precision import ContextPrecisionMetric
+    from llm_eval.metrics.context_recall import ContextRecallMetric
+    from llm_eval.metrics.format_compliance import FormatComplianceMetric
 
     registry = MetricRegistry()
     registry.register(FaithfulnessMetric())
     registry.register(AnswerRelevancyMetric())
+    registry.register(ContextPrecisionMetric())
+    registry.register(ContextRecallMetric())
+    registry.register(FormatComplianceMetric())
     return registry
 
 
