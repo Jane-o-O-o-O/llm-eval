@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 from llm_eval.metrics import MetricResult, get_default_registry
@@ -13,10 +14,12 @@ class Evaluator:
 
     Orchestrates the evaluation pipeline: loads metrics from the registry,
     runs each sample through the configured metrics, and produces results.
+    Supports parallel evaluation with configurable concurrency.
 
     Attributes:
         metric_names: List of metric names to evaluate.
         threshold: Pass/fail threshold for overall score.
+        parallel: Number of concurrent evaluations.
     """
 
     def __init__(
@@ -30,11 +33,11 @@ class Evaluator:
         Args:
             metrics: List of metric names to use for evaluation.
             threshold: Score threshold for pass/fail determination.
-            parallel: Number of concurrent evaluations (reserved for future use).
+            parallel: Number of concurrent evaluations (1 = sequential).
         """
         self.metric_names = metrics
         self.threshold = threshold
-        self.parallel = parallel
+        self.parallel = max(1, parallel)
         self._registry = get_default_registry()
 
     async def _run_metric(self, metric_name: str, sample: Sample) -> MetricResult:
@@ -66,20 +69,51 @@ class Evaluator:
             metric_results.append(result)
         return EvalResult(sample_index=index, metrics=metric_results)
 
-    async def evaluate(self, samples: list[Sample]) -> list[EvalResult]:
-        """Evaluate a list of samples.
+    async def evaluate(
+        self,
+        samples: list[Sample],
+        progress_callback: Any | None = None,
+    ) -> list[EvalResult]:
+        """Evaluate a list of samples, with optional parallel execution.
 
         Args:
             samples: List of samples to evaluate.
+            progress_callback: Optional callback called after each sample completes.
+                               Signature: callback(completed: int, total: int)
 
         Returns:
             List of EvalResult, one per sample.
         """
-        results: list[EvalResult] = []
-        for i, sample in enumerate(samples):
-            result = await self.evaluate_sample(sample, index=i)
-            results.append(result)
-        return results
+        if self.parallel <= 1:
+            # Sequential evaluation
+            results: list[EvalResult] = []
+            for i, sample in enumerate(samples):
+                result = await self.evaluate_sample(sample, index=i)
+                results.append(result)
+                if progress_callback:
+                    progress_callback(len(results), len(samples))
+            return results
+
+        # Parallel evaluation with semaphore
+        semaphore = asyncio.Semaphore(self.parallel)
+        results_list: list[EvalResult | None] = [None] * len(samples)
+        completed_count = 0
+
+        async def _eval_with_semaphore(idx: int, sample: Sample) -> None:
+            nonlocal completed_count
+            async with semaphore:
+                result = await self.evaluate_sample(sample, index=idx)
+                results_list[idx] = result
+                completed_count += 1
+                if progress_callback:
+                    progress_callback(completed_count, len(samples))
+
+        tasks = [
+            _eval_with_semaphore(i, sample)
+            for i, sample in enumerate(samples)
+        ]
+        await asyncio.gather(*tasks)
+        return [r for r in results_list if r is not None]
 
     def summarize(self, results: list[EvalResult]) -> dict[str, Any]:
         """Generate a summary report from evaluation results.

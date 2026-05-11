@@ -109,3 +109,97 @@ class TestEvaluator:
         summary = evaluator.summarize([])
         assert summary["total_samples"] == 0
         assert summary["overall_score"] == 0.0
+
+
+class TestParallelEvaluation:
+    """Tests for parallel evaluation with asyncio.Semaphore."""
+
+    @pytest.mark.asyncio
+    async def test_parallel_evaluation_produces_all_results(self) -> None:
+        evaluator = Evaluator(metrics=["faithfulness"], parallel=3)
+
+        samples = [
+            Sample(query=f"q{i}", context=[f"c{i}"], answer=f"a{i}")
+            for i in range(5)
+        ]
+
+        mock_result = MetricResult(name="faithfulness", score=0.8, details={})
+
+        with patch.object(
+            evaluator, "_run_metric", new_callable=AsyncMock, return_value=mock_result
+        ):
+            results = await evaluator.evaluate(samples)
+            assert len(results) == 5
+
+    @pytest.mark.asyncio
+    async def test_parallel_preserves_order(self) -> None:
+        evaluator = Evaluator(metrics=["faithfulness"], parallel=2)
+
+        samples = [
+            Sample(query=f"q{i}", context=[f"c{i}"], answer=f"a{i}")
+            for i in range(4)
+        ]
+
+        # Different scores per sample to verify ordering
+        score_map = {0: 0.1, 1: 0.2, 2: 0.3, 3: 0.4}
+
+        async def mock_run(metric_name: str, sample: Sample) -> MetricResult:
+            idx = int(sample.query[1:])
+            return MetricResult(name="faithfulness", score=score_map[idx], details={})
+
+        with patch.object(evaluator, "_run_metric", side_effect=mock_run):
+            results = await evaluator.evaluate(samples)
+            assert len(results) == 4
+            # Results should be in original order
+            for i, result in enumerate(results):
+                assert result.sample_index == i
+                assert result.metrics[0].score == score_map[i]
+
+    @pytest.mark.asyncio
+    async def test_progress_callback_called(self) -> None:
+        evaluator = Evaluator(metrics=["faithfulness"], parallel=2)
+
+        samples = [
+            Sample(query=f"q{i}", context=[f"c{i}"], answer=f"a{i}")
+            for i in range(3)
+        ]
+
+        mock_result = MetricResult(name="faithfulness", score=0.9, details={})
+        progress_calls: list[tuple[int, int]] = []
+
+        def on_progress(completed: int, total: int) -> None:
+            progress_calls.append((completed, total))
+
+        with patch.object(
+            evaluator, "_run_metric", new_callable=AsyncMock, return_value=mock_result
+        ):
+            await evaluator.evaluate(samples, progress_callback=on_progress)
+
+        assert len(progress_calls) == 3
+        # Last call should be (3, 3)
+        assert progress_calls[-1] == (3, 3)
+
+    def test_parallel_minimum_is_one(self) -> None:
+        evaluator = Evaluator(metrics=["faithfulness"], parallel=0)
+        assert evaluator.parallel == 1
+
+        evaluator2 = Evaluator(metrics=["faithfulness"], parallel=-5)
+        assert evaluator2.parallel == 1
+
+    @pytest.mark.asyncio
+    async def test_sequential_when_parallel_is_one(self) -> None:
+        evaluator = Evaluator(metrics=["faithfulness"], parallel=1)
+        assert evaluator.parallel == 1
+
+        samples = [
+            Sample(query=f"q{i}", context=[f"c{i}"], answer=f"a{i}")
+            for i in range(2)
+        ]
+
+        mock_result = MetricResult(name="faithfulness", score=0.85, details={})
+
+        with patch.object(
+            evaluator, "_run_metric", new_callable=AsyncMock, return_value=mock_result
+        ):
+            results = await evaluator.evaluate(samples)
+            assert len(results) == 2

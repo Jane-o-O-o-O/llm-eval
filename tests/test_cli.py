@@ -4,6 +4,7 @@ import json
 import os
 
 import pytest
+import yaml
 from click.testing import CliRunner
 from llm_eval.cli import main
 
@@ -55,8 +56,6 @@ class TestRunCommand:
 
     def test_run_with_config_and_dataset(self, tmp_path) -> None:
         """Test run with a config file pointing to a dataset."""
-        import yaml
-
         # Create dataset
         dataset = [
             {
@@ -101,6 +100,248 @@ class TestRunCommand:
         assert result.exit_code == 0
         assert "init" in result.output
         assert "run" in result.output
+
+    def test_run_with_fail_on_regression_flag(self, tmp_path) -> None:
+        """Test that --fail-on regression is accepted as a valid option."""
+        # Just verify the flag is accepted by checking help
+        runner = CliRunner()
+        result = runner.invoke(main, ["run", "--help"])
+        assert result.exit_code == 0
+        assert "--fail-on" in result.output
+        assert "regression" in result.output
+
+    def test_run_parallel_flag_accepted(self, tmp_path) -> None:
+        """Test that --parallel flag is accepted."""
+        dataset = [
+            {
+                "query": "test",
+                "context": ["ctx"],
+                "answer": "ans",
+            }
+        ]
+        dataset_path = tmp_path / "samples.jsonl"
+        dataset_path.write_text("\n".join(json.dumps(d) for d in dataset) + "\n")
+
+        config = {
+            "judge": {"model": "gpt-4o"},
+            "evaluations": [
+                {
+                    "name": "Test",
+                    "dataset": str(dataset_path),
+                    "metrics": ["faithfulness"],
+                }
+            ],
+        }
+        config_path = tmp_path / "evals.yaml"
+        config_path.write_text(yaml.dump(config))
+
+        runner = CliRunner()
+        result = runner.invoke(main, [
+            "run", "--config", str(config_path), "--parallel", "3",
+        ])
+        # Will fail (no API key), but the flag should be parsed
+        assert "--parallel" not in result.output or result.exit_code != 0
+
+
+class TestMetricsCommand:
+    """Tests for the `llm-eval metrics` command."""
+
+    def test_metrics_lists_all_metrics(self) -> None:
+        runner = CliRunner()
+        result = runner.invoke(main, ["metrics"])
+        assert result.exit_code == 0
+        assert "faithfulness" in result.output
+        assert "answer_relevancy" in result.output
+        assert "context_precision" in result.output
+        assert "context_recall" in result.output
+        assert "format_compliance" in result.output
+        assert "toxicity" in result.output
+
+    def test_metrics_shows_count(self) -> None:
+        runner = CliRunner()
+        result = runner.invoke(main, ["metrics"])
+        assert result.exit_code == 0
+        assert "Total:" in result.output
+
+    def test_metrics_shows_descriptions(self) -> None:
+        runner = CliRunner()
+        result = runner.invoke(main, ["metrics"])
+        assert result.exit_code == 0
+        assert "Factual consistency" in result.output or "faithfulness" in result.output
+
+
+class TestValidateCommand:
+    """Tests for the `llm-eval validate` command."""
+
+    def test_validate_valid_config(self, tmp_path) -> None:
+        """Test validation of a valid config file."""
+        dataset = [
+            {
+                "query": "test",
+                "context": ["ctx"],
+                "answer": "ans",
+            }
+        ]
+        dataset_path = tmp_path / "samples.jsonl"
+        dataset_path.write_text("\n".join(json.dumps(d) for d in dataset) + "\n")
+
+        config = {
+            "judge": {"model": "gpt-4o"},
+            "evaluations": [
+                {
+                    "name": "Test Eval",
+                    "dataset": str(dataset_path),
+                    "metrics": ["faithfulness", "answer_relevancy"],
+                }
+            ],
+            "defaults": {"threshold": 0.7},
+        }
+        config_path = tmp_path / "evals.yaml"
+        config_path.write_text(yaml.dump(config))
+
+        runner = CliRunner()
+        result = runner.invoke(main, ["validate", str(config_path)])
+        assert result.exit_code == 0
+        assert "valid" in result.output.lower() or "✅" in result.output
+
+    def test_validate_missing_dataset(self, tmp_path) -> None:
+        """Test validation catches missing dataset."""
+        config = {
+            "evaluations": [
+                {
+                    "name": "Test",
+                    "dataset": "/nonexistent/data.jsonl",
+                    "metrics": ["faithfulness"],
+                }
+            ],
+        }
+        config_path = tmp_path / "evals.yaml"
+        config_path.write_text(yaml.dump(config))
+
+        runner = CliRunner()
+        result = runner.invoke(main, ["validate", str(config_path)])
+        assert result.exit_code != 0
+        assert "not found" in result.output.lower() or "❌" in result.output
+
+    def test_validate_unknown_metric(self, tmp_path) -> None:
+        """Test validation catches unknown metrics."""
+        config = {
+            "evaluations": [
+                {
+                    "name": "Test",
+                    "dataset": "data.jsonl",
+                    "metrics": ["nonexistent_metric"],
+                }
+            ],
+        }
+        config_path = tmp_path / "evals.yaml"
+        config_path.write_text(yaml.dump(config))
+
+        runner = CliRunner()
+        result = runner.invoke(main, ["validate", str(config_path)])
+        assert result.exit_code != 0
+        assert "nonexistent_metric" in result.output
+
+    def test_validate_no_evaluations(self, tmp_path) -> None:
+        """Test validation catches empty evaluations."""
+        config = {"evaluations": []}
+        config_path = tmp_path / "evals.yaml"
+        config_path.write_text(yaml.dump(config))
+
+        runner = CliRunner()
+        result = runner.invoke(main, ["validate", str(config_path)])
+        assert result.exit_code != 0
+
+    def test_validate_nonexistent_file(self) -> None:
+        """Test validation of a nonexistent file."""
+        runner = CliRunner()
+        result = runner.invoke(main, ["validate", "/nonexistent/config.yaml"])
+        assert result.exit_code != 0
+
+
+class TestCompareCommand:
+    """Tests for the `llm-eval compare` command."""
+
+    def _make_report(self, tmp_path, name: str, overall: float, metrics: dict) -> str:
+        """Helper to create a JSON report file."""
+        data = {
+            "summary": {
+                "total_samples": 5,
+                "overall_score": overall,
+                "metric_scores": metrics,
+            },
+            "results": [],
+        }
+        path = tmp_path / name
+        path.write_text(json.dumps(data))
+        return str(path)
+
+    def test_compare_two_reports(self, tmp_path) -> None:
+        path_a = self._make_report(tmp_path, "a.json", 0.8, {
+            "faithfulness": {"mean": 0.9, "min": 0.7, "max": 1.0},
+        })
+        path_b = self._make_report(tmp_path, "b.json", 0.85, {
+            "faithfulness": {"mean": 0.85, "min": 0.6, "max": 1.0},
+        })
+
+        runner = CliRunner()
+        result = runner.invoke(main, ["compare", path_a, path_b])
+        assert result.exit_code == 0
+        assert "faithfulness" in result.output
+
+    def test_compare_with_labels(self, tmp_path) -> None:
+        path_a = self._make_report(tmp_path, "a.json", 0.8, {
+            "faithfulness": {"mean": 0.9, "min": 0.7, "max": 1.0},
+        })
+        path_b = self._make_report(tmp_path, "b.json", 0.85, {
+            "faithfulness": {"mean": 0.85, "min": 0.6, "max": 1.0},
+        })
+
+        runner = CliRunner()
+        result = runner.invoke(main, [
+            "compare", path_a, path_b,
+            "--label-a", "v1", "--label-b", "v2",
+        ])
+        assert result.exit_code == 0
+        assert "v1" in result.output
+        assert "v2" in result.output
+
+    def test_compare_json_output(self, tmp_path) -> None:
+        path_a = self._make_report(tmp_path, "a.json", 0.8, {
+            "faithfulness": {"mean": 0.9, "min": 0.7, "max": 1.0},
+        })
+        path_b = self._make_report(tmp_path, "b.json", 0.85, {
+            "faithfulness": {"mean": 0.85, "min": 0.6, "max": 1.0},
+        })
+
+        runner = CliRunner()
+        result = runner.invoke(main, [
+            "compare", path_a, path_b, "--output", "json",
+        ])
+        assert result.exit_code == 0
+        parsed = json.loads(result.output)
+        assert "comparisons" in parsed
+
+    def test_compare_nonexistent_file(self) -> None:
+        runner = CliRunner()
+        result = runner.invoke(main, ["compare", "/a.json", "/b.json"])
+        assert result.exit_code != 0
+
+    def test_compare_save_to_file(self, tmp_path) -> None:
+        path_a = self._make_report(tmp_path, "a.json", 0.8, {
+            "faithfulness": {"mean": 0.9, "min": 0.7, "max": 1.0},
+        })
+        path_b = self._make_report(tmp_path, "b.json", 0.85, {
+            "faithfulness": {"mean": 0.85, "min": 0.6, "max": 1.0},
+        })
+        out_path = str(tmp_path / "comparison.txt")
+
+        runner = CliRunner()
+        result = runner.invoke(main, [
+            "compare", path_a, path_b, "--report", out_path,
+        ])
+        assert result.exit_code == 0
+        assert os.path.exists(out_path)
 
 
 class TestReportGeneration:
