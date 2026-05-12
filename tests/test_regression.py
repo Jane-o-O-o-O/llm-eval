@@ -1,7 +1,9 @@
 """Tests for regression detection and CLI regression mode."""
 
 import json
+from unittest.mock import AsyncMock, patch
 
+import httpx
 import pytest
 import yaml
 from click.testing import CliRunner
@@ -147,8 +149,16 @@ class TestRegressionMode:
         assert result.exit_code == 0
         assert "--parallel" in result.output
 
-    def test_regression_mode_with_baseline(self, tmp_path) -> None:
+    @patch("llm_eval.judge.httpx.AsyncClient")
+    def test_regression_mode_with_baseline(self, mock_client_cls, tmp_path) -> None:
         """--fail-on regression with a baseline should compare against it."""
+        # Mock HTTP client to fail immediately
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(side_effect=httpx.ConnectError("No API key"))
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client_cls.return_value = mock_client
+
         # Create dataset
         dataset = [
             {
@@ -162,7 +172,7 @@ class TestRegressionMode:
 
         # Create config
         config = {
-            "judge": {"model": "gpt-4o"},
+            "judge": {"model": "gpt-4o", "max_retries": 1},
             "evaluations": [
                 {
                     "name": "Regression Test",
@@ -194,7 +204,7 @@ class TestRegressionMode:
             main,
             ["run", "--config", str(config_path), "--fail-on", "regression", "--baseline", str(baseline_path)],
         )
-        # Will fail because no API key, but config parsing + baseline loading should work
+        # Will fail because mock HTTP error
         assert result.exit_code != 0
 
 

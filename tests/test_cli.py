@@ -2,7 +2,9 @@
 
 import json
 import os
+from unittest.mock import AsyncMock, patch
 
+import httpx
 import yaml
 from click.testing import CliRunner
 from llm_eval.cli import main
@@ -53,8 +55,16 @@ class TestRunCommand:
         result = runner.invoke(main, ["run", "--config", "/nonexistent/config.yaml"])
         assert result.exit_code != 0
 
-    def test_run_with_config_and_dataset(self, tmp_path) -> None:
+    @patch("llm_eval.judge.httpx.AsyncClient")
+    def test_run_with_config_and_dataset(self, mock_client_cls, tmp_path) -> None:
         """Test run with a config file pointing to a dataset."""
+        # Mock HTTP client to fail immediately (no real API calls)
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(side_effect=httpx.ConnectError("No API key"))
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client_cls.return_value = mock_client
+
         # Create dataset
         dataset = [
             {
@@ -68,7 +78,7 @@ class TestRunCommand:
 
         # Create config
         config = {
-            "judge": {"model": "gpt-4o"},
+            "judge": {"model": "gpt-4o", "max_retries": 1},
             "evaluations": [
                 {
                     "name": "Test Eval",
@@ -84,7 +94,7 @@ class TestRunCommand:
 
         runner = CliRunner()
         result = runner.invoke(main, ["run", "--config", str(config_path)])
-        # Should fail because no API key, but config parsing should work
+        # Should fail because mock HTTP raises ConnectError
         assert result.exit_code != 0
 
     def test_run_shows_help(self) -> None:
@@ -109,8 +119,15 @@ class TestRunCommand:
         assert "--fail-on" in result.output
         assert "regression" in result.output
 
-    def test_run_parallel_flag_accepted(self, tmp_path) -> None:
+    @patch("llm_eval.judge.httpx.AsyncClient")
+    def test_run_parallel_flag_accepted(self, mock_client_cls, tmp_path) -> None:
         """Test that --parallel flag is accepted."""
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(side_effect=httpx.ConnectError("No API key"))
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client_cls.return_value = mock_client
+
         dataset = [
             {
                 "query": "test",
@@ -122,7 +139,7 @@ class TestRunCommand:
         dataset_path.write_text("\n".join(json.dumps(d) for d in dataset) + "\n")
 
         config = {
-            "judge": {"model": "gpt-4o"},
+            "judge": {"model": "gpt-4o", "max_retries": 1},
             "evaluations": [
                 {
                     "name": "Test",
@@ -138,7 +155,7 @@ class TestRunCommand:
         result = runner.invoke(main, [
             "run", "--config", str(config_path), "--parallel", "3",
         ])
-        # Will fail (no API key), but the flag should be parsed
+        # Will fail (mock HTTP error), but the flag should be parsed
         assert "--parallel" not in result.output or result.exit_code != 0
 
     def test_sample_flag_accepted(self, tmp_path) -> None:
