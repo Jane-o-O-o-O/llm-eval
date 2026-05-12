@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from llm_eval.metrics import Metric, MetricResult
 from llm_eval.models import Sample
 
@@ -62,18 +60,3 @@ class FaithfulnessMetric(Metric):
             "Respond with ONLY a JSON object:\n"
             '{"score": <float>, "reasoning": "<brief explanation>"}'
         )
-
-    async def _judge_call(self, prompt: str) -> dict[str, Any]:
-        """Call the LLM judge. Override in tests for mocking.
-
-        Args:
-            prompt: The prompt to send to the judge.
-
-        Returns:
-            Parsed JSON response from the judge.
-        """
-        # Lazy import to avoid circular dependency and allow easier testing
-        from llm_eval.judge import Judge
-
-        judge = Judge()
-        return await judge.call(prompt)

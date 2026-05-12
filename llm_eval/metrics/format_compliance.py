@@ -4,13 +4,10 @@ from __future__ import annotations
 
 import json
 import re
+from typing import Any
 
 from llm_eval.metrics import Metric, MetricResult
 from llm_eval.models import Sample
-
-
-# Supported format validators
-FORMAT_VALIDATORS: dict[str, callable] = {}  # type: ignore[type-arg]
 
 
 def _validate_json(text: str) -> tuple[bool, str]:
@@ -47,17 +44,8 @@ def _validate_numbered_list(text: str) -> tuple[bool, str]:
     return False, "Does not contain a proper numbered list (need >= 2 items)"
 
 
-def _validate_word_count(text: str) -> tuple[bool, str]:
-    """Validate word count against metadata constraints.
-
-    Expects sample.metadata['max_words'] or sample.metadata['min_words'].
-    """
-    # This is handled separately in evaluate() since it needs metadata
-    return True, "Word count check delegated"
-
-
 # Built-in format validators
-_BUILTINS: dict[str, callable] = {  # type: ignore[type-arg]
+_BUILTINS: dict[str, Any] = {
     "json": _validate_json,
     "markdown_heading": _validate_markdown_heading,
     "bullet_list": _validate_bullet_list,
@@ -76,8 +64,9 @@ class FormatComplianceMetric(Metric):
     name = "format_compliance"
     description = "Output matches required schema/format (deterministic)"
 
-    def __init__(self) -> None:
+    def __init__(self, **kwargs: Any) -> None:
         """Initialize with built-in validators."""
+        super().__init__(**kwargs)
         self._validators = dict(_BUILTINS)
 
     async def evaluate(self, sample: Sample) -> MetricResult:

@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-05-12
+
+### Added
+- **coherence metric**: Evaluates answer quality — structure, fluency, and logical flow. Useful for catching answers that are factually correct but poorly written.
+- **`--sample N` CLI flag**: Randomly sample N items from dataset for quick evaluation during development. Supports `--seed` for reproducibility.
+- **`conftest.py`**: Shared test fixtures (`sample`, `sample_with_reference`, `multiple_samples`).
+- **`_judge_call` in base `Metric` class**: All LLM-based metrics now inherit a shared `_judge_call()` method. Eliminates code duplication across 6 metrics.
+- **`judge_config` propagation**: `JudgeConfig` from YAML config is now passed through `Evaluator` → `get_default_registry()` → each metric instance. Custom base_url, model, timeout settings are actually used.
+
+### Fixed
+- **Version sync**: `__init__.py` version now matches `pyproject.toml` (was 0.1.0 vs 0.2.0).
+- **Async ABC**: `Metric.evaluate` is now properly declared as `async def` in the abstract base class, matching all implementations.
+
+### Changed
+- `Metric.__init__` now accepts optional `judge_config: JudgeConfig` parameter.
+- `get_default_registry()` now accepts optional `judge_config` parameter to pass to all metrics.
+- `Evaluator.__init__` now accepts optional `judge_config` parameter.
+- `FormatComplianceMetric.__init__` uses `**kwargs` pattern to forward judge_config to base.
+- `AnswerCorrectnessMetric.__init__` uses `**kwargs` pattern to forward judge_config to base.
+- Version bumped to 0.3.0.
+- 227 tests (up from 213).
+
 ## [0.2.0] - 2026-05-12
 
 ### Added

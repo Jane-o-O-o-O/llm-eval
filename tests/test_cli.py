@@ -142,6 +142,40 @@ class TestRunCommand:
         # Will fail (no API key), but the flag should be parsed
         assert "--parallel" not in result.output or result.exit_code != 0
 
+    def test_sample_flag_accepted(self, tmp_path) -> None:
+        """Test that --sample flag is accepted."""
+        runner = CliRunner()
+        result = runner.invoke(main, ["run", "--help"])
+        assert result.exit_code == 0
+        assert "--sample" in result.output
+
+    def test_sample_flag_with_dry_run(self, tmp_path) -> None:
+        """Test --sample flag with --dry-run shows config info."""
+        dataset = [
+            {"query": f"q{i}", "context": [f"c{i}"], "answer": f"a{i}"}
+            for i in range(10)
+        ]
+        dataset_path = tmp_path / "samples.jsonl"
+        dataset_path.write_text("\n".join(json.dumps(d) for d in dataset) + "\n")
+
+        config = {
+            "judge": {"model": "gpt-4o"},
+            "evaluations": [{
+                "name": "Test",
+                "dataset": str(dataset_path),
+                "metrics": ["faithfulness"],
+            }],
+        }
+        config_path = tmp_path / "evals.yaml"
+        config_path.write_text(yaml.dump(config))
+
+        runner = CliRunner()
+        result = runner.invoke(main, [
+            "run", "--config", str(config_path), "--dry-run",
+        ])
+        assert result.exit_code == 0
+        assert "10 samples" in result.output
+
 
 class TestMetricsCommand:
     """Tests for the `llm-eval metrics` command."""
@@ -157,6 +191,7 @@ class TestMetricsCommand:
         assert "format_compliance" in result.output
         assert "toxicity" in result.output
         assert "answer_correctness" in result.output
+        assert "coherence" in result.output
 
     def test_metrics_shows_count(self) -> None:
         runner = CliRunner()

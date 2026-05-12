@@ -65,13 +65,15 @@ class AnswerCorrectnessMetric(Metric):
     name = "answer_correctness"
     description = "Hybrid token-overlap + LLM-judge correctness against reference"
 
-    def __init__(self, token_weight: float = 0.4, judge_weight: float = 0.6) -> None:
+    def __init__(self, token_weight: float = 0.4, judge_weight: float = 0.6, **kwargs: Any) -> None:
         """Initialize with configurable blend weights.
 
         Args:
             token_weight: Weight for the token overlap component.
             judge_weight: Weight for the LLM judge component.
+            **kwargs: Passed to base Metric (e.g., judge_config).
         """
+        super().__init__(**kwargs)
         self.token_weight = token_weight
         self.judge_weight = judge_weight
 
@@ -137,17 +139,3 @@ class AnswerCorrectnessMetric(Metric):
             "Respond with ONLY a JSON object:\n"
             '{"score": <float>, "reasoning": "<brief explanation>"}'
         )
-
-    async def _judge_call(self, prompt: str) -> dict[str, Any]:
-        """Call the LLM judge. Override in tests for mocking.
-
-        Args:
-            prompt: The prompt to send to the judge.
-
-        Returns:
-            Parsed JSON response from the judge.
-        """
-        from llm_eval.judge import Judge
-
-        judge = Judge()
-        return await judge.call(prompt)

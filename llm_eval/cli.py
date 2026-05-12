@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import random
 import sys
 
 import click
@@ -14,7 +15,7 @@ from llm_eval.compare import compare_reports, format_terminal_comparison, load_r
 from llm_eval.dataset import load_jsonl
 from llm_eval.evaluator import Evaluator
 from llm_eval.metrics import get_default_registry
-from llm_eval.models import EvalConfig
+from llm_eval.models import EvalConfig, JudgeConfig
 from llm_eval.plugins import load_custom_metrics
 from llm_eval.regression import check_regression, load_baseline
 from llm_eval.report import (
@@ -84,6 +85,8 @@ def init(output: str) -> None:
 @click.option("--tolerance", type=float, default=0.05, help="Regression tolerance (default 0.05).")
 @click.option("--parallel", "-p", type=int, default=None, help="Number of parallel evaluations.")
 @click.option("--dry-run", is_flag=True, default=False, help="Validate config and print plan without running.")
+@click.option("--sample", "-s", type=int, default=None, help="Randomly sample N items from dataset (quick testing).")
+@click.option("--seed", type=int, default=None, help="Random seed for --sample (reproducible).")
 def run(
     config_path: str,
     output_format: str | None,
@@ -94,6 +97,8 @@ def run(
     tolerance: float,
     parallel: int | None,
     dry_run: bool,
+    sample: int | None,
+    seed: int | None,
 ) -> None:
     """Run evaluations based on a config file."""
     # Load config
@@ -184,6 +189,12 @@ def run(
             click.echo(f"❌ Dataset error: {exc}", err=True)
             sys.exit(1)
 
+        # Sample subset for quick testing
+        if sample is not None and sample < len(samples):
+            rng = random.Random(seed)
+            samples = rng.sample(samples, sample)
+            click.echo(f"   🎲 Sampled {sample} items from dataset (seed={seed})")
+
         click.echo(f"   📊 Loaded {len(samples)} samples")
         click.echo(f"   📏 Metrics: {', '.join(metric_names)}")
 
@@ -192,6 +203,7 @@ def run(
             threshold=eval_threshold,
             parallel=eval_parallel or 1,
             metric_weights=config.metric_weights or eval_def.get("metric_weights", {}),
+            judge_config=config.judge,
         )
 
         # Progress bar

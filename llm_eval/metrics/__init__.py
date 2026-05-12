@@ -5,20 +5,29 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any
 
-from llm_eval.models import MetricResult, Sample
+from llm_eval.models import JudgeConfig, MetricResult, Sample
 
 
 class Metric(ABC):
     """Abstract base class for all evaluation metrics.
 
     Subclasses must define `name`, `description`, and implement `evaluate()`.
+    Provides a shared `_judge_call()` for LLM-based metrics.
     """
 
     name: str
     description: str
 
+    def __init__(self, judge_config: JudgeConfig | None = None) -> None:
+        """Initialize metric with optional judge configuration.
+
+        Args:
+            judge_config: LLM judge configuration. Uses defaults if None.
+        """
+        self._judge_config = judge_config
+
     @abstractmethod
-    def evaluate(self, sample: Sample) -> MetricResult:
+    async def evaluate(self, sample: Sample) -> MetricResult:
         """Evaluate a single sample and return a metric result.
 
         Args:
@@ -27,6 +36,22 @@ class Metric(ABC):
         Returns:
             A MetricResult with the score and optional details.
         """
+
+    async def _judge_call(self, prompt: str) -> dict[str, Any]:
+        """Call the LLM judge with a prompt.
+
+        Can be overridden in subclasses for custom behavior, or patched in tests.
+
+        Args:
+            prompt: The prompt to send to the judge.
+
+        Returns:
+            Parsed JSON response from the judge.
+        """
+        from llm_eval.judge import Judge
+
+        judge = Judge(config=self._judge_config)
+        return await judge.call(prompt)
 
 
 class MetricRegistry:
@@ -86,8 +111,11 @@ class MetricRegistry:
         return sorted(self._metrics.keys())
 
 
-def get_default_registry() -> MetricRegistry:
+def get_default_registry(judge_config: JudgeConfig | None = None) -> MetricRegistry:
     """Create a registry pre-loaded with all built-in metrics.
+
+    Args:
+        judge_config: Optional judge configuration to pass to metrics.
 
     Returns:
         A MetricRegistry with all built-in metrics registered.
@@ -99,15 +127,17 @@ def get_default_registry() -> MetricRegistry:
     from llm_eval.metrics.format_compliance import FormatComplianceMetric
     from llm_eval.metrics.toxicity import ToxicityMetric
     from llm_eval.metrics.answer_correctness import AnswerCorrectnessMetric
+    from llm_eval.metrics.coherence import CoherenceMetric
 
     registry = MetricRegistry()
-    registry.register(FaithfulnessMetric())
-    registry.register(AnswerRelevancyMetric())
-    registry.register(ContextPrecisionMetric())
-    registry.register(ContextRecallMetric())
-    registry.register(FormatComplianceMetric())
-    registry.register(ToxicityMetric())
-    registry.register(AnswerCorrectnessMetric())
+    registry.register(FaithfulnessMetric(judge_config=judge_config))
+    registry.register(AnswerRelevancyMetric(judge_config=judge_config))
+    registry.register(ContextPrecisionMetric(judge_config=judge_config))
+    registry.register(ContextRecallMetric(judge_config=judge_config))
+    registry.register(FormatComplianceMetric(judge_config=judge_config))
+    registry.register(ToxicityMetric(judge_config=judge_config))
+    registry.register(AnswerCorrectnessMetric(judge_config=judge_config))
+    registry.register(CoherenceMetric(judge_config=judge_config))
     return registry
 
 

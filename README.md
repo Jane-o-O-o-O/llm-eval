@@ -25,7 +25,7 @@ Building LLM-powered apps is easy. **Knowing if they work well is hard.**
 |---|---|
 | 🚀 **Fast Setup** | Install in seconds, evaluate in minutes |
 | 🎯 **LLM-as-Judge** | Use GPT-4, Claude, Gemini, or any OpenAI-compatible model as evaluator |
-| 📊 **6 Built-in Metrics** | Faithfulness, answer relevancy, context precision/recall, format compliance, toxicity |
+| 📊 **8 Built-in Metrics** | Faithfulness, answer relevancy, correctness, coherence, context precision/recall, format compliance, toxicity |
 | 📄 **Rich Reports** | JSON, CSV, HTML, and terminal summary output |
 | ⚡ **Parallel Evaluation** | Concurrent sample evaluation with progress bars |
 | 📉 **Regression Detection** | Compare against baselines to catch quality drops |
@@ -139,6 +139,12 @@ llm-eval run --config evals.yaml --parallel 5
 
 # Regression check against a baseline
 llm-eval run --config evals.yaml --fail-on regression --baseline previous_results.json --tolerance 0.05
+
+# Quick evaluation on a random subset (for fast iteration)
+llm-eval run --config evals.yaml --sample 10
+
+# Reproducible sample with seed
+llm-eval run --config evals.yaml --sample 10 --seed 42
 ```
 
 ### `llm-eval metrics`
@@ -154,13 +160,15 @@ llm-eval metrics
 Name                   Description
 ────────────────────────────────────────────────────────────
 answer_relevancy       How well the answer addresses the query
+answer_correctness     Hybrid token-overlap + LLM-judge correctness against reference
+coherence              Answer quality: structure, fluency, and logical flow
 context_precision      Signal-to-noise ratio in retrieved context
 context_recall         Coverage of reference by retrieved context
 faithfulness           Factual consistency between answer and context
 format_compliance      Output matches required schema/format (deterministic)
 toxicity               Detects harmful, biased, or offensive content
 
-Total: 6 metrics
+Total: 8 metrics
 ```
 
 ### `llm-eval validate`
@@ -195,6 +203,8 @@ llm-eval compare baseline.json current.json --report comparison.html
 |---|---|---|
 | **faithfulness** | Factual consistency between answer and retrieved context | LLM Judge |
 | **answer_relevancy** | How well the answer addresses the original query | LLM Judge |
+| **answer_correctness** | Hybrid token-overlap + LLM-judge correctness against reference | Token + LLM Judge |
+| **coherence** | Answer quality: structure, fluency, and logical flow | LLM Judge |
 | **context_precision** | Signal-to-noise ratio in retrieved context | LLM Judge |
 | **context_recall** | Coverage of reference answer by retrieved context | LLM Judge |
 | **format_compliance** | Output matches required schema/format | Deterministic |

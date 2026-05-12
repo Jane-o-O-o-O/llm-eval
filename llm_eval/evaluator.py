@@ -6,7 +6,7 @@ import asyncio
 from typing import Any
 
 from llm_eval.metrics import MetricResult, get_default_registry
-from llm_eval.models import EvalResult, Sample
+from llm_eval.models import EvalResult, JudgeConfig, Sample
 
 
 class Evaluator:
@@ -28,6 +28,7 @@ class Evaluator:
         threshold: float = 0.7,
         parallel: int = 1,
         metric_weights: dict[str, float] | None = None,
+        judge_config: JudgeConfig | None = None,
     ) -> None:
         """Initialize the evaluator.
 
@@ -37,12 +38,13 @@ class Evaluator:
             parallel: Number of concurrent evaluations (1 = sequential).
             metric_weights: Optional per-metric weights for overall score.
                             If empty or None, uses equal weights.
+            judge_config: Optional judge model configuration to pass to metrics.
         """
         self.metric_names = metrics
         self.threshold = threshold
         self.parallel = max(1, parallel)
         self.metric_weights = metric_weights or {}
-        self._registry = get_default_registry()
+        self._registry = get_default_registry(judge_config=judge_config)
 
     async def _run_metric(self, metric_name: str, sample: Sample) -> MetricResult:
         """Run a single metric on a sample.
