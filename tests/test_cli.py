@@ -208,6 +208,8 @@ class TestMetricsCommand:
         assert "toxicity" in result.output
         assert "answer_correctness" in result.output
         assert "coherence" in result.output
+        assert "hallucination" in result.output
+        assert "answer_similarity" in result.output
 
     def test_metrics_shows_count(self) -> None:
         runner = CliRunner()

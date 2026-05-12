@@ -128,6 +128,8 @@ def get_default_registry(judge_config: JudgeConfig | None = None) -> MetricRegis
     from llm_eval.metrics.toxicity import ToxicityMetric
     from llm_eval.metrics.answer_correctness import AnswerCorrectnessMetric
     from llm_eval.metrics.coherence import CoherenceMetric
+    from llm_eval.metrics.hallucination import HallucinationMetric
+    from llm_eval.metrics.answer_similarity import AnswerSimilarityMetric
 
     registry = MetricRegistry()
     registry.register(FaithfulnessMetric(judge_config=judge_config))
@@ -138,6 +140,8 @@ def get_default_registry(judge_config: JudgeConfig | None = None) -> MetricRegis
     registry.register(ToxicityMetric(judge_config=judge_config))
     registry.register(AnswerCorrectnessMetric(judge_config=judge_config))
     registry.register(CoherenceMetric(judge_config=judge_config))
+    registry.register(HallucinationMetric(judge_config=judge_config))
+    registry.register(AnswerSimilarityMetric(judge_config=judge_config))
     return registry
 
 
