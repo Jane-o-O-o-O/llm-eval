@@ -154,7 +154,7 @@ def format_html_report(
         row_color = "#22c55e" if r.overall_score >= threshold else "#ef4444"
         sample_rows += (
             f'<tr>'
-            f'<td>{r.sample_index}</td>'
+            f'<td>#{r.sample_index}</td>'
             f'{metric_cells}'
             f'<td style="color:{row_color};font-weight:bold">{r.overall_score:.4f}</td>'
             f'</tr>\n'

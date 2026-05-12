@@ -1,89 +1,157 @@
-"""Format compliance metric: rule-based format checking without LLM judge."""
+"""Format compliance metric: checks if output matches expected format/schema."""
 
 from __future__ import annotations
 
+import json
 import re
-from dataclasses import dataclass, field
-from typing import Any
 
 from llm_eval.metrics import Metric, MetricResult
 from llm_eval.models import Sample
 
 
-@dataclass
+# Supported format validators
+FORMAT_VALIDATORS: dict[str, callable] = {}  # type: ignore[type-arg]
+
+
+def _validate_json(text: str) -> tuple[bool, str]:
+    """Validate that text is valid JSON."""
+    try:
+        json.loads(text)
+        return True, "Valid JSON"
+    except json.JSONDecodeError as exc:
+        return False, f"Invalid JSON: {exc}"
+
+
+def _validate_markdown_heading(text: str) -> tuple[bool, str]:
+    """Validate that text starts with a markdown heading."""
+    if re.match(r"^#{1,6}\s+", text.strip()):
+        return True, "Starts with markdown heading"
+    return False, "Does not start with a markdown heading"
+
+
+def _validate_bullet_list(text: str) -> tuple[bool, str]:
+    """Validate that text contains a bullet list."""
+    lines = text.strip().split("\n")
+    bullet_lines = [l for l in lines if re.match(r"^\s*[-*+]\s+", l)]
+    if len(bullet_lines) >= 2:
+        return True, f"Contains {len(bullet_lines)} bullet items"
+    return False, "Does not contain a proper bullet list (need >= 2 items)"
+
+
+def _validate_numbered_list(text: str) -> tuple[bool, str]:
+    """Validate that text contains a numbered list."""
+    lines = text.strip().split("\n")
+    numbered_lines = [l for l in lines if re.match(r"^\s*\d+[.)]\s+", l)]
+    if len(numbered_lines) >= 2:
+        return True, f"Contains {len(numbered_lines)} numbered items"
+    return False, "Does not contain a proper numbered list (need >= 2 items)"
+
+
+def _validate_word_count(text: str) -> tuple[bool, str]:
+    """Validate word count against metadata constraints.
+
+    Expects sample.metadata['max_words'] or sample.metadata['min_words'].
+    """
+    # This is handled separately in evaluate() since it needs metadata
+    return True, "Word count check delegated"
+
+
+# Built-in format validators
+_BUILTINS: dict[str, callable] = {  # type: ignore[type-arg]
+    "json": _validate_json,
+    "markdown_heading": _validate_markdown_heading,
+    "bullet_list": _validate_bullet_list,
+    "numbered_list": _validate_numbered_list,
+}
+
+
 class FormatComplianceMetric(Metric):
-    """Checks whether the generated answer complies with format requirements.
+    """Measures whether the answer matches the expected format.
 
-    This is a rule-based metric that does NOT use an LLM judge. It checks:
-    - Maximum answer length
-    - Forbidden patterns (phrases that should not appear)
-    - Required sections (keywords that must be present)
-
-    Each failed check reduces the score proportionally.
+    This is a deterministic metric that does NOT require an LLM judge.
+    Supported formats: json, markdown_heading, bullet_list, numbered_list.
+    Also supports word count constraints via metadata (min_words, max_words).
     """
 
-    name: str = "format_compliance"
-    description: str = "Rule-based format compliance checking (length, forbidden patterns, required sections)"
-    max_length: int | None = None
-    forbidden_patterns: list[str] = field(default_factory=list)
-    required_sections: list[str] = field(default_factory=list)
+    name = "format_compliance"
+    description = "Output matches required schema/format (deterministic)"
+
+    def __init__(self) -> None:
+        """Initialize with built-in validators."""
+        self._validators = dict(_BUILTINS)
 
     async def evaluate(self, sample: Sample) -> MetricResult:
-        """Evaluate format compliance of a sample's answer.
+        """Evaluate format compliance for a sample.
 
         Args:
-            sample: The evaluation sample.
+            sample: The evaluation sample. Uses metadata['expected_format']
+                    and optionally metadata['min_words']/metadata['max_words'].
 
         Returns:
-            MetricResult with compliance score (0.0–1.0) and details.
+            MetricResult with compliance score (0.0 or 1.0) and details.
         """
-        violations = 0
-        total_checks = 0
-        length_penalty = 0
-        matched_forbidden: list[str] = []
-        missing_sections: list[str] = []
+        expected_format = sample.metadata.get("expected_format")
+        checks: list[dict[str, str | bool]] = []
+        all_passed = True
 
-        answer_lower = sample.answer.lower()
+        # Format validation
+        if expected_format:
+            if expected_format not in self._validators:
+                checks.append({
+                    "check": expected_format,
+                    "passed": False,
+                    "detail": f"Unknown format: {expected_format}",
+                })
+                all_passed = False
+            else:
+                validator = self._validators[expected_format]
+                passed, detail = validator(sample.answer)
+                checks.append({
+                    "check": expected_format,
+                    "passed": passed,
+                    "detail": detail,
+                })
+                if not passed:
+                    all_passed = False
 
-        # Check max length
-        if self.max_length is not None:
-            total_checks += 1
-            if len(sample.answer) > self.max_length:
-                violations += 1
-                length_penalty = 1
+        # Word count validation
+        min_words = sample.metadata.get("min_words")
+        max_words = sample.metadata.get("max_words")
+        if min_words is not None or max_words is not None:
+            word_count = len(sample.answer.split())
+            if min_words is not None and word_count < min_words:
+                checks.append({
+                    "check": "min_words",
+                    "passed": False,
+                    "detail": f"Got {word_count} words, minimum {min_words}",
+                })
+                all_passed = False
+            if max_words is not None and word_count > max_words:
+                checks.append({
+                    "check": "max_words",
+                    "passed": False,
+                    "detail": f"Got {word_count} words, maximum {max_words}",
+                })
+                all_passed = False
+            if all_passed or not checks:
+                checks.append({
+                    "check": "word_count",
+                    "passed": True,
+                    "detail": f"{word_count} words within bounds",
+                })
 
-        # Check forbidden patterns
-        if self.forbidden_patterns:
-            total_checks += 1
-            for pattern in self.forbidden_patterns:
-                if pattern.lower() in answer_lower:
-                    matched_forbidden.append(pattern)
-            if matched_forbidden:
-                violations += 1
-
-        # Check required sections
-        if self.required_sections:
-            total_checks += 1
-            for section in self.required_sections:
-                if section.lower() not in answer_lower:
-                    missing_sections.append(section)
-            if missing_sections:
-                violations += 1
-
-        # If no checks configured, score is 1.0
-        if total_checks == 0:
-            score = 1.0
-        else:
-            score = (total_checks - violations) / total_checks
+        if not checks:
+            return MetricResult(
+                name=self.name,
+                score=1.0,
+                details={"reasoning": "No format constraints specified", "checks": []},
+            )
 
         return MetricResult(
             name=self.name,
-            score=score,
+            score=1.0 if all_passed else 0.0,
             details={
-                "length_penalty": length_penalty,
-                "matched_forbidden": matched_forbidden,
-                "missing_sections": missing_sections,
-                "total_checks": total_checks,
-                "violations": violations,
+                "reasoning": "All checks passed" if all_passed else "Some checks failed",
+                "checks": checks,
             },
         )
