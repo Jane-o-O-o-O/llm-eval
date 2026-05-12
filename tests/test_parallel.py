@@ -61,7 +61,7 @@ class TestParallelEvaluation:
 
         mock_result = MetricResult(name="faithfulness", score=0.9, details={})
         with patch.object(evaluator, "_run_metric", new_callable=AsyncMock, return_value=mock_result):
-            await evaluator.evaluate(samples, on_progress=on_progress)
+            await evaluator.evaluate(samples, progress_callback=on_progress)
 
         assert len(progress_calls) == 3
         # Should be (1,3), (2,3), (3,3)
@@ -87,7 +87,7 @@ class TestParallelEvaluation:
         def on_progress(current: int, total: int):
             progress_calls.append((current, total))
 
-        results = await evaluator.evaluate([], on_progress=on_progress)
+        results = await evaluator.evaluate([], progress_callback=on_progress)
         assert len(results) == 0
         assert len(progress_calls) == 0
 

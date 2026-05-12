@@ -134,12 +134,14 @@ class EvalConfig:
         evaluations: List of evaluation definitions.
         threshold: Default pass/fail threshold.
         output_format: Output format (terminal, json, csv, html).
+        parallel: Default parallelism for evaluations.
     """
 
     judge: JudgeConfig = field(default_factory=JudgeConfig)
     evaluations: list[dict[str, Any]] = field(default_factory=list)
     threshold: float = 0.7
     output_format: str = "terminal"
+    parallel: int = 1
     metric_weights: dict[str, float] = field(default_factory=dict)
     custom_metrics: list[dict[str, Any]] = field(default_factory=list)
 
@@ -167,6 +169,7 @@ class EvalConfig:
             evaluations=data.get("evaluations", []),
             threshold=defaults.get("threshold", 0.7),
             output_format=defaults.get("output_format", "terminal"),
+            parallel=defaults.get("parallel", 1),
             metric_weights=defaults.get("metric_weights", {}),
             custom_metrics=data.get("custom_metrics", []),
         )
