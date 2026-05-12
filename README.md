@@ -25,7 +25,7 @@ Building LLM-powered apps is easy. **Knowing if they work well is hard.**
 |---|---|
 | 🚀 **Fast Setup** | Install in seconds, evaluate in minutes |
 | 🎯 **LLM-as-Judge** | Use GPT-4, Claude, Gemini, or any OpenAI-compatible model as evaluator |
-| 📊 **8 Built-in Metrics** | Faithfulness, answer relevancy, correctness, coherence, context precision/recall, format compliance, toxicity |
+| 📊 **10 Built-in Metrics** | Faithfulness, answer relevancy, correctness, coherence, context precision/recall, format compliance, toxicity, hallucination, answer similarity |
 | 📄 **Rich Reports** | JSON, CSV, HTML, and terminal summary output |
 | ⚡ **Parallel Evaluation** | Concurrent sample evaluation with progress bars |
 | 📉 **Regression Detection** | Compare against baselines to catch quality drops |
@@ -161,14 +161,16 @@ Name                   Description
 ────────────────────────────────────────────────────────────
 answer_relevancy       How well the answer addresses the query
 answer_correctness     Hybrid token-overlap + LLM-judge correctness against reference
+answer_similarity      Semantic similarity between answer and reference answer
 coherence              Answer quality: structure, fluency, and logical flow
 context_precision      Signal-to-noise ratio in retrieved context
 context_recall         Coverage of reference by retrieved context
 faithfulness           Factual consistency between answer and context
 format_compliance      Output matches required schema/format (deterministic)
+hallucination          Degree of fabricated claims not supported by context
 toxicity               Detects harmful, biased, or offensive content
 
-Total: 8 metrics
+Total: 10 metrics
 ```
 
 ### `llm-eval validate`
@@ -204,10 +206,12 @@ llm-eval compare baseline.json current.json --report comparison.html
 | **faithfulness** | Factual consistency between answer and retrieved context | LLM Judge |
 | **answer_relevancy** | How well the answer addresses the original query | LLM Judge |
 | **answer_correctness** | Hybrid token-overlap + LLM-judge correctness against reference | Token + LLM Judge |
+| **answer_similarity** | Semantic similarity between answer and reference answer | LLM Judge |
 | **coherence** | Answer quality: structure, fluency, and logical flow | LLM Judge |
 | **context_precision** | Signal-to-noise ratio in retrieved context | LLM Judge |
 | **context_recall** | Coverage of reference answer by retrieved context | LLM Judge |
 | **format_compliance** | Output matches required schema/format | Deterministic |
+| **hallucination** | Degree of fabricated claims not supported by context | LLM Judge |
 | **toxicity** | Detects harmful, biased, or offensive content | Pattern + LLM Judge |
 
 ### Custom Metrics

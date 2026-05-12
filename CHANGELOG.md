@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-05-13
+
+### Added
+- **hallucination metric**: Detects fabricated claims in answers not supported by retrieved context. Reports individual hallucinated claims in details.
+- **answer_similarity metric**: LLM-judge semantic similarity between generated answer and reference. Requires a reference answer in the sample.
+- **`__main__.py`**: Support running as `python -m llm_eval`.
+- 10 built-in metrics total (up from 8).
+
+### Fixed
+- **Test suite hanging**: CLI and regression tests that invoked `run` without `--dry-run` made real HTTP calls and hung indefinitely. Now uses `unittest.mock.patch` to mock `httpx.AsyncClient` for fast test execution.
+- All 252 tests now complete in under 1 second (previously 2 test files would timeout).
+
 ## [0.3.0] - 2026-05-12
 
 ### Added
