@@ -1,11 +1,11 @@
 """Tests for parallel evaluation and progress callbacks."""
 
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from llm_eval.evaluator import Evaluator
 from llm_eval.metrics import MetricResult
-from llm_eval.models import EvalResult, Sample
+from llm_eval.models import Sample
 
 
 def _make_sample(i: int) -> Sample:

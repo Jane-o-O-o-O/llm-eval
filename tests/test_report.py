@@ -2,7 +2,6 @@
 
 import json
 
-import pytest
 from llm_eval.models import EvalResult, MetricResult
 from llm_eval.report import (
     format_csv_report,

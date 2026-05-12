@@ -15,7 +15,7 @@ from llm_eval.compare import compare_reports, format_terminal_comparison, load_r
 from llm_eval.dataset import load_jsonl
 from llm_eval.evaluator import Evaluator
 from llm_eval.metrics import get_default_registry
-from llm_eval.models import EvalConfig, JudgeConfig
+from llm_eval.models import EvalConfig
 from llm_eval.plugins import load_custom_metrics
 from llm_eval.regression import check_regression, load_baseline
 from llm_eval.report import (
@@ -140,7 +140,7 @@ def run(
             if unknown:
                 click.echo(f"      ❌ Unknown metrics: {', '.join(unknown)}")
             else:
-                click.echo(f"      ✅ All metrics valid")
+                click.echo("      ✅ All metrics valid")
 
             # Validate dataset exists
             ds_path = dataset
@@ -156,7 +156,7 @@ def run(
             else:
                 click.echo(f"      ❌ Dataset not found: {dataset}")
 
-        click.echo(f"\n✅ Dry run complete. Remove --dry-run to execute.")
+        click.echo("\n✅ Dry run complete. Remove --dry-run to execute.")
         return
 
     # Load custom metrics if configured
@@ -298,7 +298,7 @@ def validate(config_path: str) -> None:
 
     if not isinstance(raw_config, dict):
         errors.append("Config must be a YAML mapping")
-        click.echo(f"❌ Validation failed:\n  " + "\n  ".join(errors))
+        click.echo("❌ Validation failed:\n  " + "\n  ".join(errors))
         sys.exit(1)
 
     # Check judge section
@@ -358,7 +358,7 @@ def validate(config_path: str) -> None:
                 click.echo(f"  ⚠️  {warn}")
         sys.exit(1)
     else:
-        click.echo(f"✅ Config is valid!")
+        click.echo("✅ Config is valid!")
         if warnings:
             for warn in warnings:
                 click.echo(f"  ⚠️  {warn}")

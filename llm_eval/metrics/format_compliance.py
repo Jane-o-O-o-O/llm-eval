@@ -29,7 +29,7 @@ def _validate_markdown_heading(text: str) -> tuple[bool, str]:
 def _validate_bullet_list(text: str) -> tuple[bool, str]:
     """Validate that text contains a bullet list."""
     lines = text.strip().split("\n")
-    bullet_lines = [l for l in lines if re.match(r"^\s*[-*+]\s+", l)]
+    bullet_lines = [ln for ln in lines if re.match(r"^\s*[-*+]\s+", ln)]
     if len(bullet_lines) >= 2:
         return True, f"Contains {len(bullet_lines)} bullet items"
     return False, "Does not contain a proper bullet list (need >= 2 items)"
@@ -38,7 +38,7 @@ def _validate_bullet_list(text: str) -> tuple[bool, str]:
 def _validate_numbered_list(text: str) -> tuple[bool, str]:
     """Validate that text contains a numbered list."""
     lines = text.strip().split("\n")
-    numbered_lines = [l for l in lines if re.match(r"^\s*\d+[.)]\s+", l)]
+    numbered_lines = [ln for ln in lines if re.match(r"^\s*\d+[.)]\s+", ln)]
     if len(numbered_lines) >= 2:
         return True, f"Contains {len(numbered_lines)} numbered items"
     return False, "Does not contain a proper numbered list (need >= 2 items)"

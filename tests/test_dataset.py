@@ -1,8 +1,6 @@
 """Tests for the dataset loader."""
 
 import json
-import os
-import tempfile
 
 import pytest
 from llm_eval.dataset import load_jsonl

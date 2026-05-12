@@ -52,9 +52,10 @@ class TestToxicityPatterns:
         assert len(hits) >= 1
 
     def test_partial_match_no_false_positive(self, metric: ToxicityMetric) -> None:
-        hits = metric._scan_patterns("The documentation is stupidly comprehensive.")
-        # "stupidly" contains "stupid" — pattern should still match (conservative)
+        _hits = metric._scan_patterns("The documentation is stupidly comprehensive.")
+        # \"stupidly\" contains \"stupid\" — pattern should still match (conservative)
         # This is acceptable behavior for a safety-first metric
+        assert isinstance(_hits, list)  # should not raise
 
 
 class TestToxicityEvaluate:

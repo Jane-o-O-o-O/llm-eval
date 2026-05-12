@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from llm_eval.evaluator import Evaluator
-from llm_eval.models import EvalConfig, EvalResult, MetricResult, Sample
+from llm_eval.models import EvalConfig, EvalResult, MetricResult
 
 
 class TestMetricWeightsConfig:

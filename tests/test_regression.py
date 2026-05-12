@@ -1,14 +1,13 @@
 """Tests for regression detection and CLI regression mode."""
 
 import json
-import os
 
 import pytest
 import yaml
 from click.testing import CliRunner
 from llm_eval.cli import main
 from llm_eval.models import EvalResult, MetricResult
-from llm_eval.regression import RegressionResult, check_regression, load_baseline
+from llm_eval.regression import check_regression, load_baseline
 
 
 def _make_results(scores: dict[str, float]) -> list[EvalResult]:

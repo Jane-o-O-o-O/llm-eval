@@ -3,7 +3,6 @@
 import json
 import os
 
-import pytest
 import yaml
 from click.testing import CliRunner
 from llm_eval.cli import main
@@ -35,7 +34,7 @@ class TestInitCommand:
         sample_path = tmp_path / "samples.jsonl"
         assert sample_path.exists()
         with open(sample_path, "r") as f:
-            lines = [l for l in f if l.strip()]
+            lines = [ln for ln in f if ln.strip()]
         assert len(lines) >= 1
 
     def test_init_default_output(self, tmp_path) -> None:

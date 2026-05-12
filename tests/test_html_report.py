@@ -1,8 +1,6 @@
 """Tests for the HTML report generation."""
 
-import json
 
-import pytest
 from llm_eval.report import format_html_report
 from llm_eval.models import EvalResult, MetricResult
 

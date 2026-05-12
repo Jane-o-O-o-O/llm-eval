@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import re
-from typing import Any
 
 from llm_eval.metrics import Metric, MetricResult
 from llm_eval.models import Sample

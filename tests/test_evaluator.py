@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from llm_eval.evaluator import Evaluator
 from llm_eval.metrics import MetricResult
-from llm_eval.models import EvalResult, JudgeConfig, Sample
+from llm_eval.models import EvalResult, Sample
 
 
 class TestEvaluator:
