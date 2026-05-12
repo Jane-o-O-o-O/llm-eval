@@ -134,12 +134,14 @@ class EvalConfig:
         evaluations: List of evaluation definitions.
         threshold: Default pass/fail threshold.
         output_format: Output format (terminal, json, csv, html).
+        parallel: Default number of concurrent evaluations.
     """
 
     judge: JudgeConfig = field(default_factory=JudgeConfig)
     evaluations: list[dict[str, Any]] = field(default_factory=list)
     threshold: float = 0.7
     output_format: str = "terminal"
+    parallel: int = 1
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> EvalConfig:
@@ -165,4 +167,5 @@ class EvalConfig:
             evaluations=data.get("evaluations", []),
             threshold=defaults.get("threshold", 0.7),
             output_format=defaults.get("output_format", "terminal"),
+            parallel=defaults.get("parallel", 1),
         )

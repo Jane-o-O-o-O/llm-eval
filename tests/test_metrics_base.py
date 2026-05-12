@@ -11,7 +11,7 @@ class DummyMetric(Metric):
     name = "dummy"
     description = "A test metric"
 
-    def evaluate(self, sample: Sample) -> MetricResult:
+    async def evaluate(self, sample: Sample) -> MetricResult:
         return MetricResult(name=self.name, score=1.0, details={"test": True})
 
 
@@ -26,10 +26,11 @@ class TestMetric:
         metric = DummyMetric()
         assert metric.name == "dummy"
 
-    def test_dummy_metric_evaluate(self) -> None:
+    @pytest.mark.asyncio
+    async def test_dummy_metric_evaluate(self) -> None:
         metric = DummyMetric()
         sample = Sample(query="q", context=["c"], answer="a")
-        result = metric.evaluate(sample)
+        result = await metric.evaluate(sample)
         assert result.score == 1.0
         assert result.name == "dummy"
         assert result.details == {"test": True}

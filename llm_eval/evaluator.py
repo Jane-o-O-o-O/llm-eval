@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
-from typing import Any
+import asyncio
+from typing import Any, Callable
 
 from llm_eval.metrics import MetricResult, get_default_registry
 from llm_eval.models import EvalResult, Sample
+
+
+ProgressCallback = Callable[[int, int], None]
 
 
 class Evaluator:
@@ -14,9 +18,13 @@ class Evaluator:
     Orchestrates the evaluation pipeline: loads metrics from the registry,
     runs each sample through the configured metrics, and produces results.
 
+    Supports parallel evaluation with configurable concurrency and progress
+    tracking via callbacks.
+
     Attributes:
         metric_names: List of metric names to evaluate.
         threshold: Pass/fail threshold for overall score.
+        parallel: Maximum number of concurrent sample evaluations.
     """
 
     def __init__(
@@ -30,7 +38,7 @@ class Evaluator:
         Args:
             metrics: List of metric names to use for evaluation.
             threshold: Score threshold for pass/fail determination.
-            parallel: Number of concurrent evaluations (reserved for future use).
+            parallel: Maximum number of concurrent evaluations.
         """
         self.metric_names = metrics
         self.threshold = threshold
@@ -66,20 +74,57 @@ class Evaluator:
             metric_results.append(result)
         return EvalResult(sample_index=index, metrics=metric_results)
 
-    async def evaluate(self, samples: list[Sample]) -> list[EvalResult]:
-        """Evaluate a list of samples.
+    async def evaluate(
+        self,
+        samples: list[Sample],
+        on_progress: ProgressCallback | None = None,
+    ) -> list[EvalResult]:
+        """Evaluate a list of samples, optionally in parallel.
+
+        Uses asyncio.Semaphore to limit concurrency to `self.parallel`.
+        Results are returned in the same order as input samples.
 
         Args:
             samples: List of samples to evaluate.
+            on_progress: Optional callback called as (current, total) after
+                each sample completes. Useful for progress bars.
 
         Returns:
-            List of EvalResult, one per sample.
+            List of EvalResult, one per sample, in input order.
         """
-        results: list[EvalResult] = []
-        for i, sample in enumerate(samples):
-            result = await self.evaluate_sample(sample, index=i)
-            results.append(result)
-        return results
+        if not samples:
+            return []
+
+        total = len(samples)
+        completed = 0
+        lock = asyncio.Lock()
+        results: list[EvalResult | None] = [None] * total
+
+        async def _eval_with_progress(idx: int, sample: Sample) -> None:
+            nonlocal completed
+            result = await self.evaluate_sample(sample, index=idx)
+            results[idx] = result
+            async with lock:
+                completed += 1
+                if on_progress is not None:
+                    on_progress(completed, total)
+
+        if self.parallel <= 1:
+            # Sequential mode — simple loop
+            for idx, sample in enumerate(samples):
+                await _eval_with_progress(idx, sample)
+        else:
+            # Parallel mode with semaphore-based concurrency control
+            sem = asyncio.Semaphore(self.parallel)
+
+            async def _guarded(idx: int, sample: Sample) -> None:
+                async with sem:
+                    await _eval_with_progress(idx, sample)
+
+            tasks = [_guarded(idx, s) for idx, s in enumerate(samples)]
+            await asyncio.gather(*tasks)
+
+        return [r for r in results if r is not None]  # type: ignore[misc]
 
     def summarize(self, results: list[EvalResult]) -> dict[str, Any]:
         """Generate a summary report from evaluation results.

@@ -69,11 +69,17 @@ def init(output: str) -> None:
 @click.option("--output", "-o", "output_format", default=None, help="Output format: terminal, json, csv, html.")
 @click.option("--report", "-r", "report_path", default=None, help="Write report to file.")
 @click.option("--threshold", "-t", type=float, default=None, help="Override pass/fail threshold.")
+@click.option("--parallel", "-p", type=int, default=None, help="Number of parallel evaluations.")
+@click.option("--fail-on", "fail_on", default=None, help="Failure mode: 'threshold' (default) or 'regression'.")
+@click.option("--baseline", "baseline_path", default=None, help="Baseline report JSON for regression comparison.")
 def run(
     config_path: str,
     output_format: str | None,
     report_path: str | None,
     threshold: float | None,
+    parallel: int | None,
+    fail_on: str | None,
+    baseline_path: str | None,
 ) -> None:
     """Run evaluations based on a config file."""
     # Load config
@@ -89,12 +95,21 @@ def run(
         config.threshold = threshold
     fmt = output_format or config.output_format
 
+    # Load baseline for regression mode
+    baseline_scores: dict[str, float] | None = None
+    if fail_on == "regression" and baseline_path:
+        baseline_scores = _load_baseline(baseline_path)
+
     # Process each evaluation
+    all_passed = True
+    all_summaries: list[dict] = []
+
     for eval_def in config.evaluations:
         eval_name = eval_def.get("name", "Unnamed")
         dataset_path = eval_def.get("dataset", "")
         metric_names = eval_def.get("metrics", [])
         eval_threshold = eval_def.get("threshold", config.threshold)
+        eval_parallel = parallel or config.parallel
 
         click.echo(f"\n🧪 Running evaluation: {eval_name}")
 
@@ -111,37 +126,117 @@ def run(
 
         click.echo(f"   📊 Loaded {len(samples)} samples")
         click.echo(f"   📏 Metrics: {', '.join(metric_names)}")
+        click.echo(f"   ⚡ Parallel: {eval_parallel}")
 
         evaluator = Evaluator(
             metrics=metric_names,
             threshold=eval_threshold,
+            parallel=eval_parallel,
         )
+
+        # Progress bar
+        pbar = _create_progress_bar(len(samples))
+
+        def on_progress(current: int, total: int) -> None:
+            if pbar:
+                pbar.update(1)
 
         # Run evaluation
         try:
-            results = asyncio.run(evaluator.evaluate(samples))
+            results = asyncio.run(evaluator.evaluate(samples, on_progress=on_progress))
         except Exception as exc:
+            if pbar:
+                pbar.close()
             click.echo(f"❌ Evaluation failed: {exc}", err=True)
             sys.exit(1)
+        finally:
+            if pbar:
+                pbar.close()
 
         summary = evaluator.summarize(results)
+        all_summaries.append(summary)
 
         # Output report
         report_content = _format_report(fmt, results, summary)
 
         if report_path:
-            with open(report_path, "w", encoding="utf-8") as f:
+            # For multiple evaluations, append eval name to report path
+            if len(config.evaluations) > 1:
+                base, ext = os.path.splitext(report_path)
+                eval_report_path = f"{base}_{eval_name.replace(' ', '_')}{ext}"
+            else:
+                eval_report_path = report_path
+            with open(eval_report_path, "w", encoding="utf-8") as f:
                 f.write(report_content)
-            click.echo(f"   📄 Report saved to: {report_path}")
+            click.echo(f"   📄 Report saved to: {eval_report_path}")
+
+            # Also save as JSON for regression baseline
+            if fmt != "json":
+                json_report_path = f"{os.path.splitext(eval_report_path)[0]}.json"
+                json_content = format_json_report(results, summary)
+                with open(json_report_path, "w", encoding="utf-8") as f:
+                    f.write(json_content)
         else:
             click.echo(report_content)
 
-        # Exit code based on threshold
-        if summary["overall_score"] < eval_threshold:
-            click.echo(f"\n❌ FAILED: Score {summary['overall_score']:.2f} < threshold {eval_threshold}")
-            sys.exit(1)
+        # Determine pass/fail
+        passed = _check_pass(summary, eval_threshold, fail_on, baseline_scores, eval_name)
+        if not passed:
+            all_passed = False
+            click.echo(f"\n❌ FAILED: {eval_name}")
         else:
-            click.echo(f"\n✅ PASSED: Score {summary['overall_score']:.2f} >= threshold {eval_threshold}")
+            click.echo(f"\n✅ PASSED: {eval_name}")
+
+    if not all_passed:
+        sys.exit(1)
+
+
+def _load_baseline(baseline_path: str) -> dict[str, float]:
+    """Load baseline scores from a JSON report file."""
+    with open(baseline_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    scores: dict[str, float] = {}
+    summary = data.get("summary", {})
+    for metric_name, metric_data in summary.get("metric_scores", {}).items():
+        scores[metric_name] = metric_data.get("mean", 0.0)
+    return scores
+
+
+def _check_pass(
+    summary: dict,
+    threshold: float,
+    fail_on: str | None,
+    baseline_scores: dict[str, float] | None,
+    eval_name: str,
+) -> bool:
+    """Check if evaluation passes based on failure mode."""
+    if fail_on == "regression" and baseline_scores:
+        # Check if any metric dropped significantly
+        metric_scores = summary.get("metric_scores", {})
+        for metric_name, scores in metric_scores.items():
+            if metric_name in baseline_scores:
+                baseline = baseline_scores[metric_name]
+                current = scores["mean"]
+                # Fail if any metric drops by more than the threshold tolerance
+                if current < baseline - threshold:
+                    click.echo(
+                        f"   📉 REGRESSION: {metric_name} dropped from "
+                        f"{baseline:.4f} to {current:.4f} (delta: {current - baseline:.4f})"
+                    )
+                    return False
+        return True
+    else:
+        # Default threshold mode
+        return summary["overall_score"] >= threshold
+
+
+def _create_progress_bar(total: int):
+    """Create a tqdm progress bar if tqdm is available."""
+    try:
+        from tqdm import tqdm
+        return tqdm(total=total, desc="Evaluating", unit="sample")
+    except ImportError:
+        return None
 
 
 def _format_report(fmt: str, results, summary) -> str:
