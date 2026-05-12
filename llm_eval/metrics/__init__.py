@@ -98,6 +98,7 @@ def get_default_registry() -> MetricRegistry:
     from llm_eval.metrics.context_recall import ContextRecallMetric
     from llm_eval.metrics.format_compliance import FormatComplianceMetric
     from llm_eval.metrics.toxicity import ToxicityMetric
+    from llm_eval.metrics.answer_correctness import AnswerCorrectnessMetric
 
     registry = MetricRegistry()
     registry.register(FaithfulnessMetric())
@@ -106,6 +107,7 @@ def get_default_registry() -> MetricRegistry:
     registry.register(ContextRecallMetric())
     registry.register(FormatComplianceMetric())
     registry.register(ToxicityMetric())
+    registry.register(AnswerCorrectnessMetric())
     return registry
 
 

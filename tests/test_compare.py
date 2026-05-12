@@ -83,7 +83,7 @@ class TestCompareReports:
     def test_compare_basic(self, report_a, report_b) -> None:
         path_a, data_a = report_a
         path_b, data_b = report_b
-        result = compare_reports(data_a, data_b, "v1", "v2")
+        result = compare_reports(data_a, data_b, "v1", "v2", path_a=path_a, path_b=path_b)
 
         assert result["overall_delta"] == pytest.approx(0.06, abs=0.01)
         assert len(result["comparisons"]) == 3  # 3 unique metrics
@@ -91,7 +91,7 @@ class TestCompareReports:
     def test_compare_preserves_labels(self, report_a, report_b) -> None:
         path_a, data_a = report_a
         path_b, data_b = report_b
-        result = compare_reports(data_a, data_b, "Baseline", "Experiment")
+        result = compare_reports(data_a, data_b, "Baseline", "Experiment", path_a=path_a, path_b=path_b)
 
         assert "Baseline" in result
         assert "Experiment" in result
@@ -99,7 +99,7 @@ class TestCompareReports:
     def test_compare_metric_deltas(self, report_a, report_b) -> None:
         path_a, data_a = report_a
         path_b, data_b = report_b
-        result = compare_reports(data_a, data_b, "A", "B")
+        result = compare_reports(data_a, data_b, "A", "B", path_a=path_a, path_b=path_b)
 
         # faithfulness: 0.85 - 0.90 = -0.05
         faith_comp = next(c for c in result["comparisons"] if c["metric"] == "faithfulness")
@@ -117,7 +117,7 @@ class TestCompareReports:
                 "metric_scores": {"faithfulness": {"mean": 0.8}},
             }
         }
-        result = compare_reports(data_a, data_b, "A", "B")
+        result = compare_reports(data_a, data_b, "A", "B", path_b=path_b)
         # context_precision only in B, should default to 0 for A
         ctx_comp = next(c for c in result["comparisons"] if c["metric"] == "context_precision")
         assert ctx_comp["A"] == 0.0
@@ -130,7 +130,7 @@ class TestFormatTerminalComparison:
     def test_contains_metric_names(self, report_a, report_b) -> None:
         path_a, data_a = report_a
         path_b, data_b = report_b
-        comp = compare_reports(data_a, data_b, "v1", "v2")
+        comp = compare_reports(data_a, data_b, "v1", "v2", path_a=path_a, path_b=path_b)
         output = format_terminal_comparison(comp)
         assert "faithfulness" in output
         assert "answer_relevancy" in output
@@ -138,7 +138,7 @@ class TestFormatTerminalComparison:
     def test_contains_labels(self, report_a, report_b) -> None:
         path_a, data_a = report_a
         path_b, data_b = report_b
-        comp = compare_reports(data_a, data_b, "Baseline", "Current")
+        comp = compare_reports(data_a, data_b, "Baseline", "Current", path_a=path_a, path_b=path_b)
         output = format_terminal_comparison(comp)
         assert "Baseline" in output
         assert "Current" in output
@@ -146,7 +146,7 @@ class TestFormatTerminalComparison:
     def test_shows_improvement(self, report_a, report_b) -> None:
         path_a, data_a = report_a
         path_b, data_b = report_b
-        comp = compare_reports(data_a, data_b, "A", "B")
+        comp = compare_reports(data_a, data_b, "A", "B", path_a=path_a, path_b=path_b)
         output = format_terminal_comparison(comp)
         # overall_delta is positive (B better than A)
         assert "better" in output.lower() or "✅" in output
@@ -154,6 +154,6 @@ class TestFormatTerminalComparison:
     def test_shows_regression(self, report_a, report_b) -> None:
         path_a, data_a = report_a
         path_b, data_b = report_b
-        comp = compare_reports(data_b, data_a, "B", "A")  # A is worse
+        comp = compare_reports(data_b, data_a, "B", "A", path_a=path_b, path_b=path_a)  # A is worse
         output = format_terminal_comparison(comp)
         assert "worse" in output.lower() or "❌" in output

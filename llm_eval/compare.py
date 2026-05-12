@@ -33,6 +33,8 @@ def compare_reports(
     report_b: dict[str, Any],
     label_a: str = "Report A",
     label_b: str = "Report B",
+    path_a: str = "",
+    path_b: str = "",
 ) -> dict[str, Any]:
     """Compare two evaluation reports and generate a diff.
 
@@ -41,6 +43,8 @@ def compare_reports(
         report_b: Second report (current).
         label_a: Label for the first report.
         label_b: Label for the second report.
+        path_a: Optional file path of report A.
+        path_b: Optional file path of report B.
 
     Returns:
         Comparison dictionary with per-metric diffs.
@@ -70,8 +74,8 @@ def compare_reports(
     overall_b = summary_b.get("overall_score", 0.0)
 
     return {
-        label_a: {"path": report_a.get("_path", ""), "overall": overall_a},
-        label_b: {"path": report_b.get("_path", ""), "overall": overall_b},
+        label_a: {"path": path_a, "overall": overall_a},
+        label_b: {"path": path_b, "overall": overall_b},
         "overall_delta": round(overall_b - overall_a, 4),
         "comparisons": comparisons,
     }

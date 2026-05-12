@@ -156,6 +156,7 @@ class TestMetricsCommand:
         assert "context_recall" in result.output
         assert "format_compliance" in result.output
         assert "toxicity" in result.output
+        assert "answer_correctness" in result.output
 
     def test_metrics_shows_count(self) -> None:
         runner = CliRunner()
@@ -416,3 +417,102 @@ class TestReportGeneration:
         assert len(lines) == 3  # header + 2 rows
         assert "sample_index" in lines[0]
         assert "faithfulness" in lines[0]
+
+
+class TestDryRunCommand:
+    """Tests for the --dry-run flag on `llm-eval run`."""
+
+    def _setup_config(self, tmp_path, config_data=None):
+        """Create a config and dataset for dry-run tests."""
+        dataset = [
+            {
+                "query": "What is Python?",
+                "context": ["Python is a programming language."],
+                "answer": "Python is a programming language.",
+            }
+        ]
+        dataset_path = tmp_path / "samples.jsonl"
+        dataset_path.write_text("\n".join(json.dumps(d) for d in dataset) + "\n")
+
+        config = config_data or {
+            "judge": {"model": "gpt-4o"},
+            "evaluations": [
+                {
+                    "name": "Test Eval",
+                    "dataset": str(dataset_path),
+                    "metrics": ["faithfulness", "answer_relevancy"],
+                }
+            ],
+            "defaults": {"threshold": 0.7},
+        }
+        config_path = tmp_path / "evals.yaml"
+        config_path.write_text(yaml.dump(config))
+        return str(config_path)
+
+    def test_dry_run_valid_config(self, tmp_path) -> None:
+        config_path = self._setup_config(tmp_path)
+        runner = CliRunner()
+        result = runner.invoke(main, ["run", "--config", config_path, "--dry-run"])
+        assert result.exit_code == 0
+        assert "DRY RUN" in result.output
+        assert "Test Eval" in result.output
+        assert "faithfulness" in result.output
+        assert "answer_relevancy" in result.output
+
+    def test_dry_run_shows_judge_model(self, tmp_path) -> None:
+        config_path = self._setup_config(tmp_path)
+        runner = CliRunner()
+        result = runner.invoke(main, ["run", "--config", config_path, "--dry-run"])
+        assert result.exit_code == 0
+        assert "gpt-4o" in result.output
+
+    def test_dry_run_shows_sample_count(self, tmp_path) -> None:
+        config_path = self._setup_config(tmp_path)
+        runner = CliRunner()
+        result = runner.invoke(main, ["run", "--config", config_path, "--dry-run"])
+        assert result.exit_code == 0
+        assert "1 samples" in result.output
+
+    def test_dry_run_detects_unknown_metric(self, tmp_path) -> None:
+        config_path = self._setup_config(tmp_path, {
+            "evaluations": [
+                {
+                    "name": "Bad Eval",
+                    "dataset": str(tmp_path / "samples.jsonl"),
+                    "metrics": ["nonexistent_metric"],
+                }
+            ],
+        })
+        runner = CliRunner()
+        result = runner.invoke(main, ["run", "--config", config_path, "--dry-run"])
+        assert result.exit_code == 0  # dry-run doesn't fail, just reports
+        assert "Unknown metrics" in result.output or "nonexistent_metric" in result.output
+
+    def test_dry_run_shows_metric_weights(self, tmp_path) -> None:
+        dataset_path = tmp_path / "samples.jsonl"
+        dataset_path.write_text('{"query": "Q", "context": ["C"], "answer": "A"}\n')
+
+        config = {
+            "evaluations": [
+                {
+                    "name": "Weighted",
+                    "dataset": str(dataset_path),
+                    "metrics": ["faithfulness"],
+                }
+            ],
+            "defaults": {
+                "metric_weights": {"faithfulness": 2.0},
+            },
+        }
+        config_path = tmp_path / "evals.yaml"
+        config_path.write_text(yaml.dump(config))
+
+        runner = CliRunner()
+        result = runner.invoke(main, ["run", "--config", str(config_path), "--dry-run"])
+        assert result.exit_code == 0
+        assert "faithfulness" in result.output
+
+    def test_dry_run_missing_config_exits_error(self) -> None:
+        runner = CliRunner()
+        result = runner.invoke(main, ["run", "--config", "/nonexistent.yaml", "--dry-run"])
+        assert result.exit_code != 0

@@ -15,6 +15,7 @@ from llm_eval.dataset import load_jsonl
 from llm_eval.evaluator import Evaluator
 from llm_eval.metrics import get_default_registry
 from llm_eval.models import EvalConfig
+from llm_eval.plugins import load_custom_metrics
 from llm_eval.regression import check_regression, load_baseline
 from llm_eval.report import (
     format_csv_report,
@@ -82,6 +83,7 @@ def init(output: str) -> None:
 @click.option("--baseline", "baseline_path", default=None, help="Baseline JSON report for regression check.")
 @click.option("--tolerance", type=float, default=0.05, help="Regression tolerance (default 0.05).")
 @click.option("--parallel", "-p", type=int, default=None, help="Number of parallel evaluations.")
+@click.option("--dry-run", is_flag=True, default=False, help="Validate config and print plan without running.")
 def run(
     config_path: str,
     output_format: str | None,
@@ -91,6 +93,7 @@ def run(
     baseline_path: str | None,
     tolerance: float,
     parallel: int | None,
+    dry_run: bool,
 ) -> None:
     """Run evaluations based on a config file."""
     # Load config
@@ -105,6 +108,60 @@ def run(
     if threshold is not None:
         config.threshold = threshold
     fmt = output_format or config.output_format
+
+    # Dry-run mode: validate and print plan
+    if dry_run:
+        click.echo("🔍 DRY RUN — Validation Report")
+        click.echo("=" * 50)
+        click.echo(f"   Judge model: {config.judge.model}")
+        click.echo(f"   Threshold: {config.threshold}")
+        click.echo(f"   Output format: {fmt}")
+        if config.metric_weights:
+            click.echo(f"   Metric weights: {config.metric_weights}")
+        click.echo(f"\n   Evaluations ({len(config.evaluations)}):")
+        registry = get_default_registry()
+        for eval_def in config.evaluations:
+            name = eval_def.get("name", "Unnamed")
+            dataset = eval_def.get("dataset", "")
+            metric_names = eval_def.get("metrics", [])
+            eval_parallel = parallel or eval_def.get("parallel", 1)
+            click.echo(f"\n   📋 {name}")
+            click.echo(f"      Dataset: {dataset}")
+            click.echo(f"      Metrics: {', '.join(metric_names)}")
+            click.echo(f"      Parallel: {eval_parallel}")
+
+            # Validate metrics
+            unknown = [m for m in metric_names if not registry.is_registered(m)]
+            if unknown:
+                click.echo(f"      ❌ Unknown metrics: {', '.join(unknown)}")
+            else:
+                click.echo(f"      ✅ All metrics valid")
+
+            # Validate dataset exists
+            ds_path = dataset
+            if not os.path.isabs(ds_path):
+                config_dir = os.path.dirname(os.path.abspath(config_path))
+                ds_path = os.path.join(config_dir, ds_path)
+            if os.path.exists(ds_path):
+                try:
+                    samples = load_jsonl(ds_path)
+                    click.echo(f"      ✅ Dataset: {len(samples)} samples")
+                except ValueError as exc:
+                    click.echo(f"      ❌ Dataset error: {exc}")
+            else:
+                click.echo(f"      ❌ Dataset not found: {dataset}")
+
+        click.echo(f"\n✅ Dry run complete. Remove --dry-run to execute.")
+        return
+
+    # Load custom metrics if configured
+    if config.custom_metrics:
+        try:
+            loaded = load_custom_metrics(get_default_registry(), config.custom_metrics)
+            click.echo(f"🔌 Loaded {len(loaded)} custom metric(s): {', '.join(loaded)}")
+        except (ImportError, AttributeError, TypeError) as exc:
+            click.echo(f"❌ Failed to load custom metrics: {exc}", err=True)
+            sys.exit(1)
 
     # Process each evaluation
     for eval_def in config.evaluations:
@@ -134,6 +191,7 @@ def run(
             metrics=metric_names,
             threshold=eval_threshold,
             parallel=eval_parallel or 1,
+            metric_weights=config.metric_weights or eval_def.get("metric_weights", {}),
         )
 
         # Progress bar
@@ -313,14 +371,15 @@ def compare(
     """Compare two evaluation reports."""
     try:
         data_a = load_report(report_a)
-        data_a["_path"] = report_a
         data_b = load_report(report_b)
-        data_b["_path"] = report_b
     except (FileNotFoundError, ValueError) as exc:
         click.echo(f"❌ Error loading report: {exc}", err=True)
         sys.exit(1)
 
-    comparison = compare_reports(data_a, data_b, label_a=label_a, label_b=label_b)
+    comparison = compare_reports(
+        data_a, data_b, label_a=label_a, label_b=label_b,
+        path_a=report_a, path_b=report_b,
+    )
 
     if output_format == "json":
         content = json.dumps(comparison, indent=2, ensure_ascii=False)

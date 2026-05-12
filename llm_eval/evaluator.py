@@ -27,6 +27,7 @@ class Evaluator:
         metrics: list[str],
         threshold: float = 0.7,
         parallel: int = 1,
+        metric_weights: dict[str, float] | None = None,
     ) -> None:
         """Initialize the evaluator.
 
@@ -34,10 +35,13 @@ class Evaluator:
             metrics: List of metric names to use for evaluation.
             threshold: Score threshold for pass/fail determination.
             parallel: Number of concurrent evaluations (1 = sequential).
+            metric_weights: Optional per-metric weights for overall score.
+                            If empty or None, uses equal weights.
         """
         self.metric_names = metrics
         self.threshold = threshold
         self.parallel = max(1, parallel)
+        self.metric_weights = metric_weights or {}
         self._registry = get_default_registry()
 
     async def _run_metric(self, metric_name: str, sample: Sample) -> MetricResult:
@@ -118,6 +122,9 @@ class Evaluator:
     def summarize(self, results: list[EvalResult]) -> dict[str, Any]:
         """Generate a summary report from evaluation results.
 
+        Uses metric_weights (if configured) for computing the weighted overall score.
+        Falls back to equal weights when no weights are specified.
+
         Args:
             results: List of evaluation results.
 
@@ -134,10 +141,6 @@ class Evaluator:
                 "metric_scores": {},
             }
 
-        overall_score = sum(r.overall_score for r in results) / len(results)
-        pass_count = sum(1 for r in results if r.overall_score >= self.threshold)
-        fail_count = len(results) - pass_count
-
         # Per-metric averages
         metric_scores: dict[str, dict[str, float]] = {}
         for metric_name in self.metric_names:
@@ -152,6 +155,21 @@ class Evaluator:
                     "min": min(scores),
                     "max": max(scores),
                 }
+
+        # Weighted overall score
+        if self.metric_weights:
+            total_weight = 0.0
+            weighted_sum = 0.0
+            for metric_name, scores in metric_scores.items():
+                w = self.metric_weights.get(metric_name, 1.0)
+                weighted_sum += scores["mean"] * w
+                total_weight += w
+            overall_score = weighted_sum / total_weight if total_weight > 0 else 0.0
+        else:
+            overall_score = sum(r.overall_score for r in results) / len(results)
+
+        pass_count = sum(1 for r in results if r.overall_score >= self.threshold)
+        fail_count = len(results) - pass_count
 
         return {
             "total_samples": len(results),

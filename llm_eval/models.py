@@ -140,6 +140,8 @@ class EvalConfig:
     evaluations: list[dict[str, Any]] = field(default_factory=list)
     threshold: float = 0.7
     output_format: str = "terminal"
+    metric_weights: dict[str, float] = field(default_factory=dict)
+    custom_metrics: list[dict[str, Any]] = field(default_factory=list)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> EvalConfig:
@@ -165,4 +167,6 @@ class EvalConfig:
             evaluations=data.get("evaluations", []),
             threshold=defaults.get("threshold", 0.7),
             output_format=defaults.get("output_format", "terminal"),
+            metric_weights=defaults.get("metric_weights", {}),
+            custom_metrics=data.get("custom_metrics", []),
         )
