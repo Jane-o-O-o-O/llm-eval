@@ -3,6 +3,7 @@
 from unittest.mock import AsyncMock, patch
 
 import pytest
+
 from llm_eval.metrics.coherence import CoherenceMetric
 from llm_eval.models import Sample
 
@@ -17,6 +18,7 @@ class TestCoherenceMetric:
 
     def test_metric_implements_base(self) -> None:
         from llm_eval.metrics import Metric
+
         metric = CoherenceMetric()
         assert isinstance(metric, Metric)
 
@@ -67,16 +69,20 @@ class TestCoherenceMetric:
 
         # Score above 1.0 should be clamped
         with patch.object(
-            metric, "_judge_call", new_callable=AsyncMock,
-            return_value={"score": 1.5, "reasoning": "test"}
+            metric,
+            "_judge_call",
+            new_callable=AsyncMock,
+            return_value={"score": 1.5, "reasoning": "test"},
         ):
             result = await metric.evaluate(sample)
             assert result.score == 1.0
 
         # Score below 0.0 should be clamped
         with patch.object(
-            metric, "_judge_call", new_callable=AsyncMock,
-            return_value={"score": -0.5, "reasoning": "test"}
+            metric,
+            "_judge_call",
+            new_callable=AsyncMock,
+            return_value={"score": -0.5, "reasoning": "test"},
         ):
             result = await metric.evaluate(sample)
             assert result.score == 0.0
@@ -86,9 +92,7 @@ class TestCoherenceMetric:
         metric = CoherenceMetric()
         sample = Sample(query="q", context=["c"], answer="a")
 
-        with patch.object(
-            metric, "_judge_call", new_callable=AsyncMock, return_value={}
-        ):
+        with patch.object(metric, "_judge_call", new_callable=AsyncMock, return_value={}):
             result = await metric.evaluate(sample)
             assert result.score == 0.0  # defaults to 0.0
 

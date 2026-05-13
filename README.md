@@ -30,6 +30,7 @@ Building LLM-powered apps is easy. **Knowing if they work well is hard.**
 | ⚡ **Parallel Evaluation** | Concurrent sample evaluation with progress bars |
 | 📉 **Regression Detection** | Compare against baselines to catch quality drops |
 | 🔌 **Pluggable** | Custom metrics, CI/CD integration |
+| 🤫 **Quiet Mode** | `--quiet` flag for CI/CD pipelines |
 | 🪶 **Lightweight** | Minimal dependencies — `click` + `httpx` + your API key |
 
 ---
@@ -145,6 +146,9 @@ llm-eval run --config evals.yaml --sample 10
 
 # Reproducible sample with seed
 llm-eval run --config evals.yaml --sample 10 --seed 42
+
+# Quiet mode for CI/CD (minimal output, exit code indicates pass/fail)
+llm-eval run --config evals.yaml --quiet
 ```
 
 ### `llm-eval metrics`

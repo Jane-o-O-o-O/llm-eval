@@ -59,9 +59,7 @@ class ContextRecallMetric(Metric):
         Returns:
             Formatted prompt string for the judge.
         """
-        context_text = "\n".join(
-            f"  [{i+1}] {ctx}" for i, ctx in enumerate(sample.context)
-        )
+        context_text = "\n".join(f"  [{i + 1}] {ctx}" for i, ctx in enumerate(sample.context))
         return (
             "You are evaluating the recall of retrieved context for answering a question.\n\n"
             "Context recall measures whether the retrieved context contains the information "

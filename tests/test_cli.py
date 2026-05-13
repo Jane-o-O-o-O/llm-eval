@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, patch
 import httpx
 import yaml
 from click.testing import CliRunner
+
 from llm_eval.cli import main
 
 
@@ -24,7 +25,7 @@ class TestInitCommand:
         runner = CliRunner()
         output = str(tmp_path / "evals.yaml")
         runner.invoke(main, ["init", "--output", output])
-        with open(output, "r") as f:
+        with open(output) as f:
             content = f.read()
         assert "judge:" in content
         assert "evaluations:" in content
@@ -35,7 +36,7 @@ class TestInitCommand:
         runner.invoke(main, ["init", "--output", output])
         sample_path = tmp_path / "samples.jsonl"
         assert sample_path.exists()
-        with open(sample_path, "r") as f:
+        with open(sample_path) as f:
             lines = [ln for ln in f if ln.strip()]
         assert len(lines) >= 1
 
@@ -152,9 +153,16 @@ class TestRunCommand:
         config_path.write_text(yaml.dump(config))
 
         runner = CliRunner()
-        result = runner.invoke(main, [
-            "run", "--config", str(config_path), "--parallel", "3",
-        ])
+        result = runner.invoke(
+            main,
+            [
+                "run",
+                "--config",
+                str(config_path),
+                "--parallel",
+                "3",
+            ],
+        )
         # Will fail (mock HTTP error), but the flag should be parsed
         assert "--parallel" not in result.output or result.exit_code != 0
 
@@ -167,28 +175,33 @@ class TestRunCommand:
 
     def test_sample_flag_with_dry_run(self, tmp_path) -> None:
         """Test --sample flag with --dry-run shows config info."""
-        dataset = [
-            {"query": f"q{i}", "context": [f"c{i}"], "answer": f"a{i}"}
-            for i in range(10)
-        ]
+        dataset = [{"query": f"q{i}", "context": [f"c{i}"], "answer": f"a{i}"} for i in range(10)]
         dataset_path = tmp_path / "samples.jsonl"
         dataset_path.write_text("\n".join(json.dumps(d) for d in dataset) + "\n")
 
         config = {
             "judge": {"model": "gpt-4o"},
-            "evaluations": [{
-                "name": "Test",
-                "dataset": str(dataset_path),
-                "metrics": ["faithfulness"],
-            }],
+            "evaluations": [
+                {
+                    "name": "Test",
+                    "dataset": str(dataset_path),
+                    "metrics": ["faithfulness"],
+                }
+            ],
         }
         config_path = tmp_path / "evals.yaml"
         config_path.write_text(yaml.dump(config))
 
         runner = CliRunner()
-        result = runner.invoke(main, [
-            "run", "--config", str(config_path), "--dry-run",
-        ])
+        result = runner.invoke(
+            main,
+            [
+                "run",
+                "--config",
+                str(config_path),
+                "--dry-run",
+            ],
+        )
         assert result.exit_code == 0
         assert "10 samples" in result.output
 
@@ -331,12 +344,22 @@ class TestCompareCommand:
         return str(path)
 
     def test_compare_two_reports(self, tmp_path) -> None:
-        path_a = self._make_report(tmp_path, "a.json", 0.8, {
-            "faithfulness": {"mean": 0.9, "min": 0.7, "max": 1.0},
-        })
-        path_b = self._make_report(tmp_path, "b.json", 0.85, {
-            "faithfulness": {"mean": 0.85, "min": 0.6, "max": 1.0},
-        })
+        path_a = self._make_report(
+            tmp_path,
+            "a.json",
+            0.8,
+            {
+                "faithfulness": {"mean": 0.9, "min": 0.7, "max": 1.0},
+            },
+        )
+        path_b = self._make_report(
+            tmp_path,
+            "b.json",
+            0.85,
+            {
+                "faithfulness": {"mean": 0.85, "min": 0.6, "max": 1.0},
+            },
+        )
 
         runner = CliRunner()
         result = runner.invoke(main, ["compare", path_a, path_b])
@@ -344,34 +367,69 @@ class TestCompareCommand:
         assert "faithfulness" in result.output
 
     def test_compare_with_labels(self, tmp_path) -> None:
-        path_a = self._make_report(tmp_path, "a.json", 0.8, {
-            "faithfulness": {"mean": 0.9, "min": 0.7, "max": 1.0},
-        })
-        path_b = self._make_report(tmp_path, "b.json", 0.85, {
-            "faithfulness": {"mean": 0.85, "min": 0.6, "max": 1.0},
-        })
+        path_a = self._make_report(
+            tmp_path,
+            "a.json",
+            0.8,
+            {
+                "faithfulness": {"mean": 0.9, "min": 0.7, "max": 1.0},
+            },
+        )
+        path_b = self._make_report(
+            tmp_path,
+            "b.json",
+            0.85,
+            {
+                "faithfulness": {"mean": 0.85, "min": 0.6, "max": 1.0},
+            },
+        )
 
         runner = CliRunner()
-        result = runner.invoke(main, [
-            "compare", path_a, path_b,
-            "--label-a", "v1", "--label-b", "v2",
-        ])
+        result = runner.invoke(
+            main,
+            [
+                "compare",
+                path_a,
+                path_b,
+                "--label-a",
+                "v1",
+                "--label-b",
+                "v2",
+            ],
+        )
         assert result.exit_code == 0
         assert "v1" in result.output
         assert "v2" in result.output
 
     def test_compare_json_output(self, tmp_path) -> None:
-        path_a = self._make_report(tmp_path, "a.json", 0.8, {
-            "faithfulness": {"mean": 0.9, "min": 0.7, "max": 1.0},
-        })
-        path_b = self._make_report(tmp_path, "b.json", 0.85, {
-            "faithfulness": {"mean": 0.85, "min": 0.6, "max": 1.0},
-        })
+        path_a = self._make_report(
+            tmp_path,
+            "a.json",
+            0.8,
+            {
+                "faithfulness": {"mean": 0.9, "min": 0.7, "max": 1.0},
+            },
+        )
+        path_b = self._make_report(
+            tmp_path,
+            "b.json",
+            0.85,
+            {
+                "faithfulness": {"mean": 0.85, "min": 0.6, "max": 1.0},
+            },
+        )
 
         runner = CliRunner()
-        result = runner.invoke(main, [
-            "compare", path_a, path_b, "--output", "json",
-        ])
+        result = runner.invoke(
+            main,
+            [
+                "compare",
+                path_a,
+                path_b,
+                "--output",
+                "json",
+            ],
+        )
         assert result.exit_code == 0
         parsed = json.loads(result.output)
         assert "comparisons" in parsed
@@ -382,18 +440,35 @@ class TestCompareCommand:
         assert result.exit_code != 0
 
     def test_compare_save_to_file(self, tmp_path) -> None:
-        path_a = self._make_report(tmp_path, "a.json", 0.8, {
-            "faithfulness": {"mean": 0.9, "min": 0.7, "max": 1.0},
-        })
-        path_b = self._make_report(tmp_path, "b.json", 0.85, {
-            "faithfulness": {"mean": 0.85, "min": 0.6, "max": 1.0},
-        })
+        path_a = self._make_report(
+            tmp_path,
+            "a.json",
+            0.8,
+            {
+                "faithfulness": {"mean": 0.9, "min": 0.7, "max": 1.0},
+            },
+        )
+        path_b = self._make_report(
+            tmp_path,
+            "b.json",
+            0.85,
+            {
+                "faithfulness": {"mean": 0.85, "min": 0.6, "max": 1.0},
+            },
+        )
         out_path = str(tmp_path / "comparison.txt")
 
         runner = CliRunner()
-        result = runner.invoke(main, [
-            "compare", path_a, path_b, "--report", out_path,
-        ])
+        result = runner.invoke(
+            main,
+            [
+                "compare",
+                path_a,
+                path_b,
+                "--report",
+                out_path,
+            ],
+        )
         assert result.exit_code == 0
         assert os.path.exists(out_path)
 
@@ -402,8 +477,8 @@ class TestReportGeneration:
     """Tests for the report/output generation."""
 
     def test_terminal_report(self) -> None:
-        from llm_eval.report import format_terminal_report
         from llm_eval.models import EvalResult, MetricResult
+        from llm_eval.report import format_terminal_report
 
         results = [
             EvalResult(
@@ -428,8 +503,8 @@ class TestReportGeneration:
         assert "PASS" in output
 
     def test_json_report(self) -> None:
-        from llm_eval.report import format_json_report
         from llm_eval.models import EvalResult, MetricResult
+        from llm_eval.report import format_json_report
 
         results = [
             EvalResult(
@@ -452,8 +527,8 @@ class TestReportGeneration:
         assert len(parsed["results"]) == 1
 
     def test_csv_report(self) -> None:
-        from llm_eval.report import format_csv_report
         from llm_eval.models import EvalResult, MetricResult
+        from llm_eval.report import format_csv_report
 
         results = [
             EvalResult(
@@ -527,15 +602,18 @@ class TestDryRunCommand:
         assert "1 samples" in result.output
 
     def test_dry_run_detects_unknown_metric(self, tmp_path) -> None:
-        config_path = self._setup_config(tmp_path, {
-            "evaluations": [
-                {
-                    "name": "Bad Eval",
-                    "dataset": str(tmp_path / "samples.jsonl"),
-                    "metrics": ["nonexistent_metric"],
-                }
-            ],
-        })
+        config_path = self._setup_config(
+            tmp_path,
+            {
+                "evaluations": [
+                    {
+                        "name": "Bad Eval",
+                        "dataset": str(tmp_path / "samples.jsonl"),
+                        "metrics": ["nonexistent_metric"],
+                    }
+                ],
+            },
+        )
         runner = CliRunner()
         result = runner.invoke(main, ["run", "--config", config_path, "--dry-run"])
         assert result.exit_code == 0  # dry-run doesn't fail, just reports

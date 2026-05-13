@@ -48,7 +48,10 @@ class Judge:
             ValueError: If JSON parsing fails for json format.
         """
         messages = [
-            {"role": "system", "content": "You are an evaluation judge. Respond only as instructed."},
+            {
+                "role": "system",
+                "content": "You are an evaluation judge. Respond only as instructed.",
+            },
             {"role": "user", "content": prompt},
         ]
 
@@ -76,7 +79,7 @@ class Judge:
             except (httpx.HTTPStatusError, httpx.RequestError) as exc:
                 last_error = exc
                 if attempt < self.config.max_retries - 1:
-                    await asyncio.sleep(2 ** attempt)
+                    await asyncio.sleep(2**attempt)
 
         raise last_error  # type: ignore[misc]
 

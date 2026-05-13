@@ -3,6 +3,7 @@
 from unittest.mock import AsyncMock, patch
 
 import pytest
+
 from llm_eval.evaluator import Evaluator
 from llm_eval.metrics import MetricResult
 from llm_eval.models import Sample
@@ -22,7 +23,9 @@ class TestParallelEvaluation:
         samples = [_make_sample(i) for i in range(5)]
 
         mock_result = MetricResult(name="faithfulness", score=0.8, details={})
-        with patch.object(evaluator, "_run_metric", new_callable=AsyncMock, return_value=mock_result):
+        with patch.object(
+            evaluator, "_run_metric", new_callable=AsyncMock, return_value=mock_result
+        ):
             results = await evaluator.evaluate(samples)
             assert len(results) == 5
             for i, r in enumerate(results):
@@ -60,7 +63,9 @@ class TestParallelEvaluation:
             progress_calls.append((current, total))
 
         mock_result = MetricResult(name="faithfulness", score=0.9, details={})
-        with patch.object(evaluator, "_run_metric", new_callable=AsyncMock, return_value=mock_result):
+        with patch.object(
+            evaluator, "_run_metric", new_callable=AsyncMock, return_value=mock_result
+        ):
             await evaluator.evaluate(samples, progress_callback=on_progress)
 
         assert len(progress_calls) == 3
@@ -74,7 +79,9 @@ class TestParallelEvaluation:
         samples = [_make_sample(0)]
 
         mock_result = MetricResult(name="faithfulness", score=0.9, details={})
-        with patch.object(evaluator, "_run_metric", new_callable=AsyncMock, return_value=mock_result):
+        with patch.object(
+            evaluator, "_run_metric", new_callable=AsyncMock, return_value=mock_result
+        ):
             results = await evaluator.evaluate(samples)
             assert len(results) == 1
 

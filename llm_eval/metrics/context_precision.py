@@ -52,9 +52,7 @@ class ContextPrecisionMetric(Metric):
         Returns:
             Formatted prompt string for the judge.
         """
-        context_text = "\n".join(
-            f"  [{i+1}] {ctx}" for i, ctx in enumerate(sample.context)
-        )
+        context_text = "\n".join(f"  [{i + 1}] {ctx}" for i, ctx in enumerate(sample.context))
         ref_section = ""
         if sample.reference:
             ref_section = f"\n## Reference Answer\n{sample.reference}\n"

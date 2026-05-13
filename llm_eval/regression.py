@@ -68,7 +68,7 @@ def load_baseline(path: str) -> dict[str, float]:
         FileNotFoundError: If the file does not exist.
         ValueError: If the file format is invalid.
     """
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         data = json.load(f)
 
     summary = data.get("summary", {})
@@ -109,8 +109,7 @@ def check_regression(
             metric_sums.setdefault(m.name, []).append(m.score)
 
     current_means: dict[str, float] = {
-        name: sum(scores) / len(scores)
-        for name, scores in metric_sums.items()
+        name: sum(scores) / len(scores) for name, scores in metric_sums.items()
     }
 
     comparisons: list[dict[str, Any]] = []
@@ -124,13 +123,15 @@ def check_regression(
         if not passed:
             all_passed = False
 
-        comparisons.append({
-            "metric": metric_name,
-            "baseline": baseline_score,
-            "current": current_score,
-            "delta": delta,
-            "passed": passed,
-        })
+        comparisons.append(
+            {
+                "metric": metric_name,
+                "baseline": baseline_score,
+                "current": current_score,
+                "delta": delta,
+                "passed": passed,
+            }
+        )
 
     return RegressionResult(
         passed=all_passed,

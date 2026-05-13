@@ -27,7 +27,7 @@ def load_jsonl(filepath: str) -> list[Sample]:
     """
     samples: list[Sample] = []
 
-    with open(filepath, "r", encoding="utf-8") as f:
+    with open(filepath, encoding="utf-8") as f:
         for line_num, line in enumerate(f, start=1):
             stripped = line.strip()
             if not stripped:
@@ -36,15 +36,11 @@ def load_jsonl(filepath: str) -> list[Sample]:
             try:
                 data = json.loads(stripped)
             except json.JSONDecodeError as exc:
-                raise ValueError(
-                    f"Invalid JSON on line {line_num}: {exc}"
-                ) from exc
+                raise ValueError(f"Invalid JSON on line {line_num}: {exc}") from exc
 
             missing = REQUIRED_FIELDS - set(data.keys())
             if missing:
-                raise ValueError(
-                    f"Missing required field(s) {missing} on line {line_num}"
-                )
+                raise ValueError(f"Missing required field(s) {missing} on line {line_num}")
 
             samples.append(Sample.from_dict(data))
 

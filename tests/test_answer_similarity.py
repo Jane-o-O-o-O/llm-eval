@@ -42,7 +42,9 @@ class TestAnswerSimilarityMetric:
     @pytest.mark.asyncio
     async def test_high_similarity(self, metric, sample_with_ref) -> None:
         mock_response = {"score": 0.9, "reasoning": "Very similar meaning"}
-        with patch.object(metric, "_judge_call", new_callable=AsyncMock, return_value=mock_response):
+        with patch.object(
+            metric, "_judge_call", new_callable=AsyncMock, return_value=mock_response
+        ):
             result = await metric.evaluate(sample_with_ref)
         assert result.name == "answer_similarity"
         assert result.score == 0.9
@@ -57,14 +59,18 @@ class TestAnswerSimilarityMetric:
     @pytest.mark.asyncio
     async def test_score_clamped(self, metric, sample_with_ref) -> None:
         mock_response = {"score": 2.0, "reasoning": ""}
-        with patch.object(metric, "_judge_call", new_callable=AsyncMock, return_value=mock_response):
+        with patch.object(
+            metric, "_judge_call", new_callable=AsyncMock, return_value=mock_response
+        ):
             result = await metric.evaluate(sample_with_ref)
         assert result.score == 1.0
 
     @pytest.mark.asyncio
     async def test_score_clamped_below_zero(self, metric, sample_with_ref) -> None:
         mock_response = {"score": -1.0, "reasoning": ""}
-        with patch.object(metric, "_judge_call", new_callable=AsyncMock, return_value=mock_response):
+        with patch.object(
+            metric, "_judge_call", new_callable=AsyncMock, return_value=mock_response
+        ):
             result = await metric.evaluate(sample_with_ref)
         assert result.score == 0.0
 
@@ -77,6 +83,8 @@ class TestAnswerSimilarityMetric:
     @pytest.mark.asyncio
     async def test_default_score_on_empty_response(self, metric, sample_with_ref) -> None:
         mock_response = {}
-        with patch.object(metric, "_judge_call", new_callable=AsyncMock, return_value=mock_response):
+        with patch.object(
+            metric, "_judge_call", new_callable=AsyncMock, return_value=mock_response
+        ):
             result = await metric.evaluate(sample_with_ref)
         assert result.score == 0.0

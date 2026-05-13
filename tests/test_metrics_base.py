@@ -1,7 +1,8 @@
 """Tests for the metric framework base class and registry."""
 
 import pytest
-from llm_eval.metrics import Metric, MetricResult, MetricRegistry
+
+from llm_eval.metrics import Metric, MetricRegistry, MetricResult
 from llm_eval.models import Sample
 
 

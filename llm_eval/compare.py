@@ -19,7 +19,7 @@ def load_report(path: str) -> dict[str, Any]:
         FileNotFoundError: If the file does not exist.
         ValueError: If the file is not valid JSON or lacks expected fields.
     """
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         data = json.load(f)
 
     if "summary" not in data:
@@ -59,16 +59,26 @@ def compare_reports(
 
     comparisons: list[dict[str, Any]] = []
     for metric in all_metrics:
-        score_a = metrics_a.get(metric, {}).get("mean", 0.0) if isinstance(metrics_a.get(metric), dict) else float(metrics_a.get(metric, 0.0))
-        score_b = metrics_b.get(metric, {}).get("mean", 0.0) if isinstance(metrics_b.get(metric), dict) else float(metrics_b.get(metric, 0.0))
+        score_a = (
+            metrics_a.get(metric, {}).get("mean", 0.0)
+            if isinstance(metrics_a.get(metric), dict)
+            else float(metrics_a.get(metric, 0.0))
+        )
+        score_b = (
+            metrics_b.get(metric, {}).get("mean", 0.0)
+            if isinstance(metrics_b.get(metric), dict)
+            else float(metrics_b.get(metric, 0.0))
+        )
         delta = score_b - score_a
 
-        comparisons.append({
-            "metric": metric,
-            label_a: round(score_a, 4),
-            label_b: round(score_b, 4),
-            "delta": round(delta, 4),
-        })
+        comparisons.append(
+            {
+                "metric": metric,
+                label_a: round(score_a, 4),
+                label_b: round(score_b, 4),
+                "delta": round(delta, 4),
+            }
+        )
 
     overall_a = summary_a.get("overall_score", 0.0)
     overall_b = summary_b.get("overall_score", 0.0)

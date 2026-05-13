@@ -86,20 +86,24 @@ class FormatComplianceMetric(Metric):
         # Format validation
         if expected_format:
             if expected_format not in self._validators:
-                checks.append({
-                    "check": expected_format,
-                    "passed": False,
-                    "detail": f"Unknown format: {expected_format}",
-                })
+                checks.append(
+                    {
+                        "check": expected_format,
+                        "passed": False,
+                        "detail": f"Unknown format: {expected_format}",
+                    }
+                )
                 all_passed = False
             else:
                 validator = self._validators[expected_format]
                 passed, detail = validator(sample.answer)
-                checks.append({
-                    "check": expected_format,
-                    "passed": passed,
-                    "detail": detail,
-                })
+                checks.append(
+                    {
+                        "check": expected_format,
+                        "passed": passed,
+                        "detail": detail,
+                    }
+                )
                 if not passed:
                     all_passed = False
 
@@ -109,25 +113,31 @@ class FormatComplianceMetric(Metric):
         if min_words is not None or max_words is not None:
             word_count = len(sample.answer.split())
             if min_words is not None and word_count < min_words:
-                checks.append({
-                    "check": "min_words",
-                    "passed": False,
-                    "detail": f"Got {word_count} words, minimum {min_words}",
-                })
+                checks.append(
+                    {
+                        "check": "min_words",
+                        "passed": False,
+                        "detail": f"Got {word_count} words, minimum {min_words}",
+                    }
+                )
                 all_passed = False
             if max_words is not None and word_count > max_words:
-                checks.append({
-                    "check": "max_words",
-                    "passed": False,
-                    "detail": f"Got {word_count} words, maximum {max_words}",
-                })
+                checks.append(
+                    {
+                        "check": "max_words",
+                        "passed": False,
+                        "detail": f"Got {word_count} words, maximum {max_words}",
+                    }
+                )
                 all_passed = False
             if all_passed or not checks:
-                checks.append({
-                    "check": "word_count",
-                    "passed": True,
-                    "detail": f"{word_count} words within bounds",
-                })
+                checks.append(
+                    {
+                        "check": "word_count",
+                        "passed": True,
+                        "detail": f"{word_count} words within bounds",
+                    }
+                )
 
         if not checks:
             return MetricResult(

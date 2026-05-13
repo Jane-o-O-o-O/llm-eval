@@ -1,6 +1,6 @@
 """Tests for core data models."""
 
-from llm_eval.models import Sample, MetricResult, EvalResult
+from llm_eval.models import EvalResult, MetricResult, Sample
 
 
 class TestSample:

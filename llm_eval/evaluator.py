@@ -114,10 +114,7 @@ class Evaluator:
                 if progress_callback:
                     progress_callback(completed_count, len(samples))
 
-        tasks = [
-            _eval_with_semaphore(i, sample)
-            for i, sample in enumerate(samples)
-        ]
+        tasks = [_eval_with_semaphore(i, sample) for i, sample in enumerate(samples)]
         await asyncio.gather(*tasks)
         return [r for r in results_list if r is not None]
 

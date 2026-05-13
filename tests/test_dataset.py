@@ -3,6 +3,7 @@
 import json
 
 import pytest
+
 from llm_eval.dataset import load_jsonl
 from llm_eval.models import Sample
 

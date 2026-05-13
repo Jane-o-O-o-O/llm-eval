@@ -17,9 +17,7 @@ class TestMetricWeightsConfig:
 
     def test_weights_from_dict(self) -> None:
         data = {
-            "defaults": {
-                "metric_weights": {"faithfulness": 2.0, "answer_relevancy": 1.0}
-            },
+            "defaults": {"metric_weights": {"faithfulness": 2.0, "answer_relevancy": 1.0}},
             "evaluations": [],
         }
         config = EvalConfig.from_dict(data)

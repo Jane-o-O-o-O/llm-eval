@@ -26,6 +26,12 @@ from llm_eval.report import (
 )
 
 
+def _echo(msg: str, quiet: bool = False) -> None:  # noqa: F811
+    """Print message unless quiet mode is enabled."""
+    if not quiet:
+        click.echo(msg)
+
+
 INIT_CONFIG_TEMPLATE = """\
 judge:
   model: gpt-4o
@@ -76,17 +82,45 @@ def init(output: str) -> None:
 
 @main.command()
 @click.option("--config", "-c", "config_path", required=True, help="Path to eval config YAML.")
-@click.option("--output", "-o", "output_format", default=None, help="Output format: terminal, json, csv, html.")
+@click.option(
+    "--output",
+    "-o",
+    "output_format",
+    default=None,
+    help="Output format: terminal, json, csv, html.",
+)
 @click.option("--report", "-r", "report_path", default=None, help="Write report to file.")
 @click.option("--threshold", "-t", type=float, default=None, help="Override pass/fail threshold.")
-@click.option("--fail-on", "fail_on", default=None, type=click.Choice(["threshold", "regression"]),
-              help="Failure mode: 'threshold' (default) or 'regression' (compare to baseline).")
-@click.option("--baseline", "baseline_path", default=None, help="Baseline JSON report for regression check.")
+@click.option(
+    "--fail-on",
+    "fail_on",
+    default=None,
+    type=click.Choice(["threshold", "regression"]),
+    help="Failure mode: 'threshold' (default) or 'regression' (compare to baseline).",
+)
+@click.option(
+    "--baseline", "baseline_path", default=None, help="Baseline JSON report for regression check."
+)
 @click.option("--tolerance", type=float, default=0.05, help="Regression tolerance (default 0.05).")
 @click.option("--parallel", "-p", type=int, default=None, help="Number of parallel evaluations.")
-@click.option("--dry-run", is_flag=True, default=False, help="Validate config and print plan without running.")
-@click.option("--sample", "-s", type=int, default=None, help="Randomly sample N items from dataset (quick testing).")
+@click.option(
+    "--dry-run", is_flag=True, default=False, help="Validate config and print plan without running."
+)
+@click.option(
+    "--sample",
+    "-s",
+    type=int,
+    default=None,
+    help="Randomly sample N items from dataset (quick testing).",
+)
 @click.option("--seed", type=int, default=None, help="Random seed for --sample (reproducible).")
+@click.option(
+    "--quiet",
+    "-q",
+    is_flag=True,
+    default=False,
+    help="Minimal output for CI/CD. Only prints pass/fail.",
+)
 def run(
     config_path: str,
     output_format: str | None,
@@ -99,6 +133,7 @@ def run(
     dry_run: bool,
     sample: int | None,
     seed: int | None,
+    quiet: bool,
 ) -> None:
     """Run evaluations based on a config file."""
     # Load config
@@ -106,7 +141,7 @@ def run(
         click.echo(f"❌ Config file not found: {config_path}", err=True)
         sys.exit(1)
 
-    with open(config_path, "r", encoding="utf-8") as f:
+    with open(config_path, encoding="utf-8") as f:
         raw_config = yaml.safe_load(f)
 
     config = EvalConfig.from_dict(raw_config)
@@ -163,7 +198,7 @@ def run(
     if config.custom_metrics:
         try:
             loaded = load_custom_metrics(get_default_registry(), config.custom_metrics)
-            click.echo(f"🔌 Loaded {len(loaded)} custom metric(s): {', '.join(loaded)}")
+            _echo(f"🔌 Loaded {len(loaded)} custom metric(s): {', '.join(loaded)}", quiet)
         except (ImportError, AttributeError, TypeError) as exc:
             click.echo(f"❌ Failed to load custom metrics: {exc}", err=True)
             sys.exit(1)
@@ -176,7 +211,7 @@ def run(
         eval_threshold = eval_def.get("threshold", config.threshold)
         eval_parallel = parallel or eval_def.get("parallel", config.judge.max_retries)
 
-        click.echo(f"\n🧪 Running evaluation: {eval_name}")
+        _echo(f"\n🧪 Running evaluation: {eval_name}", quiet)
 
         # Resolve dataset path relative to config file
         if not os.path.isabs(dataset_path):
@@ -193,10 +228,10 @@ def run(
         if sample is not None and sample < len(samples):
             rng = random.Random(seed)
             samples = rng.sample(samples, sample)
-            click.echo(f"   🎲 Sampled {sample} items from dataset (seed={seed})")
+            _echo(f"   🎲 Sampled {sample} items from dataset (seed={seed})", quiet)
 
-        click.echo(f"   📊 Loaded {len(samples)} samples")
-        click.echo(f"   📏 Metrics: {', '.join(metric_names)}")
+        _echo(f"   📊 Loaded {len(samples)} samples", quiet)
+        _echo(f"   📏 Metrics: {', '.join(metric_names)}", quiet)
 
         evaluator = Evaluator(
             metrics=metric_names,
@@ -207,19 +242,20 @@ def run(
         )
 
         # Progress bar
-        use_progress = len(samples) > 1 and sys.stderr.isatty()
+        use_progress = len(samples) > 1 and sys.stderr.isatty() and not quiet
         progress_bar = None
         if use_progress:
             try:
                 from tqdm import tqdm
+
                 progress_bar = tqdm(total=len(samples), desc="   Evaluating", unit="sample")
             except ImportError:
                 progress_bar = None
 
-        def _on_progress(completed: int, total: int) -> None:
-            if progress_bar is not None:
-                progress_bar.update(1)
-            elif not use_progress:
+        def _on_progress(completed: int, total: int, _pb=progress_bar, _up=use_progress) -> None:
+            if _pb is not None:
+                _pb.update(1)
+            elif not _up:
                 pass  # silent in non-tty mode
 
         # Run evaluation
@@ -242,8 +278,8 @@ def run(
         if report_path:
             with open(report_path, "w", encoding="utf-8") as f:
                 f.write(report_content)
-            click.echo(f"   📄 Report saved to: {report_path}")
-        else:
+            _echo(f"   📄 Report saved to: {report_path}", quiet)
+        elif not quiet:
             click.echo(report_content)
 
         # Failure mode
@@ -264,10 +300,14 @@ def run(
         else:
             # Default threshold check
             if summary["overall_score"] < eval_threshold:
-                click.echo(f"\n❌ FAILED: Score {summary['overall_score']:.2f} < threshold {eval_threshold}")
+                click.echo(
+                    f"\n❌ FAILED: Score {summary['overall_score']:.2f} < threshold {eval_threshold}"
+                )
                 sys.exit(1)
             else:
-                click.echo(f"\n✅ PASSED: Score {summary['overall_score']:.2f} >= threshold {eval_threshold}")
+                click.echo(
+                    f"\n✅ PASSED: Score {summary['overall_score']:.2f} >= threshold {eval_threshold}"
+                )
 
 
 @main.command("metrics")
@@ -289,7 +329,7 @@ def metrics_list() -> None:
 @click.argument("config_path", type=click.Path(exists=True))
 def validate(config_path: str) -> None:
     """Validate an evaluation config file."""
-    with open(config_path, "r", encoding="utf-8") as f:
+    with open(config_path, encoding="utf-8") as f:
         raw_config = yaml.safe_load(f)
 
     # Check top-level structure
@@ -313,7 +353,7 @@ def validate(config_path: str) -> None:
 
     registry = get_default_registry()
     for i, eval_def in enumerate(evaluations):
-        eval_name = eval_def.get("name", f"Evaluation #{i+1}")
+        eval_name = eval_def.get("name", f"Evaluation #{i + 1}")
 
         # Check metrics
         metric_names = eval_def.get("metrics", [])
@@ -370,7 +410,9 @@ def validate(config_path: str) -> None:
 @click.argument("report_b", type=click.Path(exists=True))
 @click.option("--label-a", default="Baseline", help="Label for the first report.")
 @click.option("--label-b", default="Current", help="Label for the second report.")
-@click.option("--output", "-o", "output_format", default="terminal", help="Output format: terminal, json.")
+@click.option(
+    "--output", "-o", "output_format", default="terminal", help="Output format: terminal, json."
+)
 @click.option("--report", "-r", "report_path", default=None, help="Write comparison to file.")
 def compare(
     report_a: str,
@@ -389,8 +431,12 @@ def compare(
         sys.exit(1)
 
     comparison = compare_reports(
-        data_a, data_b, label_a=label_a, label_b=label_b,
-        path_a=report_a, path_b=report_b,
+        data_a,
+        data_b,
+        label_a=label_a,
+        label_b=label_b,
+        path_a=report_a,
+        path_b=report_b,
     )
 
     if output_format == "json":

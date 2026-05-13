@@ -3,6 +3,7 @@
 from unittest.mock import AsyncMock, patch
 
 import pytest
+
 from llm_eval.evaluator import Evaluator
 from llm_eval.metrics import MetricResult
 from llm_eval.models import EvalResult, Sample
@@ -118,10 +119,7 @@ class TestParallelEvaluation:
     async def test_parallel_evaluation_produces_all_results(self) -> None:
         evaluator = Evaluator(metrics=["faithfulness"], parallel=3)
 
-        samples = [
-            Sample(query=f"q{i}", context=[f"c{i}"], answer=f"a{i}")
-            for i in range(5)
-        ]
+        samples = [Sample(query=f"q{i}", context=[f"c{i}"], answer=f"a{i}") for i in range(5)]
 
         mock_result = MetricResult(name="faithfulness", score=0.8, details={})
 
@@ -135,10 +133,7 @@ class TestParallelEvaluation:
     async def test_parallel_preserves_order(self) -> None:
         evaluator = Evaluator(metrics=["faithfulness"], parallel=2)
 
-        samples = [
-            Sample(query=f"q{i}", context=[f"c{i}"], answer=f"a{i}")
-            for i in range(4)
-        ]
+        samples = [Sample(query=f"q{i}", context=[f"c{i}"], answer=f"a{i}") for i in range(4)]
 
         # Different scores per sample to verify ordering
         score_map = {0: 0.1, 1: 0.2, 2: 0.3, 3: 0.4}
@@ -159,10 +154,7 @@ class TestParallelEvaluation:
     async def test_progress_callback_called(self) -> None:
         evaluator = Evaluator(metrics=["faithfulness"], parallel=2)
 
-        samples = [
-            Sample(query=f"q{i}", context=[f"c{i}"], answer=f"a{i}")
-            for i in range(3)
-        ]
+        samples = [Sample(query=f"q{i}", context=[f"c{i}"], answer=f"a{i}") for i in range(3)]
 
         mock_result = MetricResult(name="faithfulness", score=0.9, details={})
         progress_calls: list[tuple[int, int]] = []
@@ -191,10 +183,7 @@ class TestParallelEvaluation:
         evaluator = Evaluator(metrics=["faithfulness"], parallel=1)
         assert evaluator.parallel == 1
 
-        samples = [
-            Sample(query=f"q{i}", context=[f"c{i}"], answer=f"a{i}")
-            for i in range(2)
-        ]
+        samples = [Sample(query=f"q{i}", context=[f"c{i}"], answer=f"a{i}") for i in range(2)]
 
         mock_result = MetricResult(name="faithfulness", score=0.85, details={})
 

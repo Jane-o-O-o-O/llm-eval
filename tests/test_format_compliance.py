@@ -3,6 +3,7 @@
 import json
 
 import pytest
+
 from llm_eval.metrics.format_compliance import FormatComplianceMetric
 from llm_eval.models import Sample
 
@@ -17,6 +18,7 @@ class TestFormatComplianceMetric:
 
     def test_metric_implements_base(self) -> None:
         from llm_eval.metrics import Metric
+
         metric = FormatComplianceMetric()
         assert isinstance(metric, Metric)
 

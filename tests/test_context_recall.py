@@ -3,6 +3,7 @@
 from unittest.mock import AsyncMock, patch
 
 import pytest
+
 from llm_eval.metrics.context_recall import ContextRecallMetric
 from llm_eval.models import Sample
 
@@ -17,6 +18,7 @@ class TestContextRecallMetric:
 
     def test_metric_implements_base(self) -> None:
         from llm_eval.metrics import Metric
+
         metric = ContextRecallMetric()
         assert isinstance(metric, Metric)
 

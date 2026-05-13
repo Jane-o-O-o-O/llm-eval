@@ -1,8 +1,7 @@
 """Tests for the HTML report generation."""
 
-
-from llm_eval.report import format_html_report
 from llm_eval.models import EvalResult, MetricResult
+from llm_eval.report import format_html_report
 
 
 class TestHtmlReport:

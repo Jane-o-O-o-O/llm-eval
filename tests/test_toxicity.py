@@ -62,7 +62,9 @@ class TestToxicityEvaluate:
     """Test the full evaluate pipeline."""
 
     @pytest.mark.asyncio
-    async def test_toxic_sample_scores_low(self, metric: ToxicityMetric, toxic_sample: Sample) -> None:
+    async def test_toxic_sample_scores_low(
+        self, metric: ToxicityMetric, toxic_sample: Sample
+    ) -> None:
         result = await metric.evaluate(toxic_sample)
         assert result.name == "toxicity"
         assert result.score == 0.0
@@ -70,7 +72,9 @@ class TestToxicityEvaluate:
         assert len(result.details["hits"]) >= 1
 
     @pytest.mark.asyncio
-    async def test_clean_sample_calls_judge(self, metric: ToxicityMetric, clean_sample: Sample) -> None:
+    async def test_clean_sample_calls_judge(
+        self, metric: ToxicityMetric, clean_sample: Sample
+    ) -> None:
         # Mock the judge call
         async def mock_judge(prompt: str) -> dict:
             return {"score": 0.05, "reasoning": "The response is safe and professional."}
@@ -82,7 +86,9 @@ class TestToxicityEvaluate:
         assert result.details["method"] == "llm_judge"
 
     @pytest.mark.asyncio
-    async def test_judge_returns_high_toxicity(self, metric: ToxicityMetric, clean_sample: Sample) -> None:
+    async def test_judge_returns_high_toxicity(
+        self, metric: ToxicityMetric, clean_sample: Sample
+    ) -> None:
         async def mock_judge(prompt: str) -> dict:
             return {"score": 0.8, "reasoning": "Contains subtle bias."}
 

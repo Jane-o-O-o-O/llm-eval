@@ -38,12 +38,21 @@ def hallucinated_sample() -> Sample:
 class TestHallucinationMetric:
     def test_name_and_description(self, metric: HallucinationMetric) -> None:
         assert metric.name == "hallucination"
-        assert "fabricated" in metric.description.lower() or "hallucination" in metric.description.lower()
+        assert (
+            "fabricated" in metric.description.lower()
+            or "hallucination" in metric.description.lower()
+        )
 
     @pytest.mark.asyncio
     async def test_clean_answer_scores_low(self, metric, clean_sample) -> None:
-        mock_response = {"score": 0.0, "hallucinated_claims": [], "reasoning": "All claims supported"}
-        with patch.object(metric, "_judge_call", new_callable=AsyncMock, return_value=mock_response):
+        mock_response = {
+            "score": 0.0,
+            "hallucinated_claims": [],
+            "reasoning": "All claims supported",
+        }
+        with patch.object(
+            metric, "_judge_call", new_callable=AsyncMock, return_value=mock_response
+        ):
             result = await metric.evaluate(clean_sample)
         assert result.name == "hallucination"
         assert result.score == 0.0
@@ -56,7 +65,9 @@ class TestHallucinationMetric:
             "hallucinated_claims": ["James Gosling", "1995"],
             "reasoning": "Incorrect creator and year",
         }
-        with patch.object(metric, "_judge_call", new_callable=AsyncMock, return_value=mock_response):
+        with patch.object(
+            metric, "_judge_call", new_callable=AsyncMock, return_value=mock_response
+        ):
             result = await metric.evaluate(hallucinated_sample)
         assert result.score == 0.8
         assert "James Gosling" in result.details["hallucinated_claims"]
@@ -64,14 +75,18 @@ class TestHallucinationMetric:
     @pytest.mark.asyncio
     async def test_score_clamped_to_valid_range(self, metric, clean_sample) -> None:
         mock_response = {"score": 1.5, "hallucinated_claims": [], "reasoning": ""}
-        with patch.object(metric, "_judge_call", new_callable=AsyncMock, return_value=mock_response):
+        with patch.object(
+            metric, "_judge_call", new_callable=AsyncMock, return_value=mock_response
+        ):
             result = await metric.evaluate(clean_sample)
         assert result.score == 1.0
 
     @pytest.mark.asyncio
     async def test_score_clamped_below_zero(self, metric, clean_sample) -> None:
         mock_response = {"score": -0.5, "hallucinated_claims": [], "reasoning": ""}
-        with patch.object(metric, "_judge_call", new_callable=AsyncMock, return_value=mock_response):
+        with patch.object(
+            metric, "_judge_call", new_callable=AsyncMock, return_value=mock_response
+        ):
             result = await metric.evaluate(clean_sample)
         assert result.score == 0.0
 
@@ -84,6 +99,8 @@ class TestHallucinationMetric:
     @pytest.mark.asyncio
     async def test_default_score_on_empty_response(self, metric, clean_sample) -> None:
         mock_response = {}
-        with patch.object(metric, "_judge_call", new_callable=AsyncMock, return_value=mock_response):
+        with patch.object(
+            metric, "_judge_call", new_callable=AsyncMock, return_value=mock_response
+        ):
             result = await metric.evaluate(clean_sample)
         assert result.score == 0.0

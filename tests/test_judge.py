@@ -3,6 +3,7 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
 from llm_eval.judge import Judge
 from llm_eval.models import JudgeConfig
 
@@ -27,9 +28,7 @@ class TestJudge:
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
-            "choices": [
-                {"message": {"content": '{"score": 0.9, "reasoning": "Good answer"}'}}
-            ]
+            "choices": [{"message": {"content": '{"score": 0.9, "reasoning": "Good answer"}'}}]
         }
         mock_response.raise_for_status = MagicMock()
 

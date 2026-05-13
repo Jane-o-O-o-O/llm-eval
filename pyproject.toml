@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "llm-eval"
-version = "0.4.0"
+version = "0.5.0"
 description = "Lightweight CLI for evaluating LLM applications"
 readme = "README.md"
 license = {text = "MIT"}
@@ -38,3 +38,13 @@ pythonpath = ["."]
 [tool.ruff]
 target-version = "py310"
 line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "SIM"]
+ignore = ["E501"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.setuptools.package-data]
+llm_eval = ["py.typed"]

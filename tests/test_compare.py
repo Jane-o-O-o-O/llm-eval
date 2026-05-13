@@ -91,7 +91,9 @@ class TestCompareReports:
     def test_compare_preserves_labels(self, report_a, report_b) -> None:
         path_a, data_a = report_a
         path_b, data_b = report_b
-        result = compare_reports(data_a, data_b, "Baseline", "Experiment", path_a=path_a, path_b=path_b)
+        result = compare_reports(
+            data_a, data_b, "Baseline", "Experiment", path_a=path_a, path_b=path_b
+        )
 
         assert "Baseline" in result
         assert "Experiment" in result

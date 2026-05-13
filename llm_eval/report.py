@@ -3,17 +3,15 @@
 from __future__ import annotations
 
 import csv
+import html
 import io
 import json
-import html
 from typing import Any
 
 from llm_eval.models import EvalResult
 
 
-def format_terminal_report(
-    results: list[EvalResult], summary: dict[str, Any]
-) -> str:
+def format_terminal_report(results: list[EvalResult], summary: dict[str, Any]) -> str:
     """Format evaluation results as a terminal-friendly table.
 
     Args:
@@ -53,9 +51,7 @@ def format_terminal_report(
     return "\n".join(lines)
 
 
-def format_json_report(
-    results: list[EvalResult], summary: dict[str, Any]
-) -> str:
+def format_json_report(results: list[EvalResult], summary: dict[str, Any]) -> str:
     """Format evaluation results as JSON.
 
     Args:
@@ -105,9 +101,7 @@ def format_csv_report(results: list[EvalResult]) -> str:
     return output.getvalue()
 
 
-def format_html_report(
-    results: list[EvalResult], summary: dict[str, Any]
-) -> str:
+def format_html_report(results: list[EvalResult], summary: dict[str, Any]) -> str:
     """Format evaluation results as a self-contained HTML report.
 
     Args:
@@ -133,13 +127,13 @@ def format_html_report(
         status = "PASS" if mean >= threshold else "FAIL"
         color = "#22c55e" if mean >= threshold else "#ef4444"
         metric_rows += (
-            f'<tr>'
-            f'<td>{html.escape(metric_name)}</td>'
-            f'<td>{mean:.4f}</td>'
-            f'<td>{scores["min"]:.4f}</td>'
-            f'<td>{scores["max"]:.4f}</td>'
+            f"<tr>"
+            f"<td>{html.escape(metric_name)}</td>"
+            f"<td>{mean:.4f}</td>"
+            f"<td>{scores['min']:.4f}</td>"
+            f"<td>{scores['max']:.4f}</td>"
             f'<td style="color:{color};font-weight:bold">{status}</td>'
-            f'</tr>\n'
+            f"</tr>\n"
         )
 
     # Build per-sample rows
@@ -148,17 +142,40 @@ def format_html_report(
         metric_cells = ""
         for m in r.metrics:
             m_color = "#22c55e" if m.score >= threshold else "#ef4444"
-            metric_cells += (
-                f'<td style="color:{m_color}">{m.score:.4f}</td>'
-            )
+            metric_cells += f'<td style="color:{m_color}">{m.score:.4f}</td>'
         row_color = "#22c55e" if r.overall_score >= threshold else "#ef4444"
         sample_rows += (
-            f'<tr>'
-            f'<td>#{r.sample_index}</td>'
-            f'{metric_cells}'
+            f"<tr>"
+            f"<td>#{r.sample_index}</td>"
+            f"{metric_cells}"
             f'<td style="color:{row_color};font-weight:bold">{r.overall_score:.4f}</td>'
-            f'</tr>\n'
+            f"</tr>\n"
         )
+
+    # Build SVG histogram of overall scores
+    score_bins = [0.0] * 10  # 10 bins: 0-0.1, 0.1-0.2, ..., 0.9-1.0
+    for r in results:
+        bin_idx = min(int(r.overall_score * 10), 9)
+        score_bins[bin_idx] += 1
+    max_bin = max(score_bins) if score_bins else 1
+    bar_width = 50
+    chart_height = 120
+    chart_width = bar_width * 10 + 20
+    svg_bars = ""
+    for i, count in enumerate(score_bins):
+        bar_h = (count / max_bin * (chart_height - 20)) if max_bin > 0 else 0
+        x = 10 + i * bar_width
+        y = chart_height - bar_h - 15
+        color = "#22c55e" if (i + 1) * 0.1 > threshold else "#ef4444"
+        svg_bars += f'<rect x="{x}" y="{y}" width="{bar_width - 4}" height="{bar_h}" fill="{color}" rx="2"/>'
+        label_x = x + (bar_width - 4) / 2
+        svg_bars += f'<text x="{label_x}" y="{chart_height - 2}" fill="#94a3b8" font-size="10" text-anchor="middle">{i / 10:.1f}-{(i + 1) / 10:.1f}</text>'
+        if count > 0:
+            svg_bars += f'<text x="{label_x}" y="{y - 4}" fill="#e2e8f0" font-size="10" text-anchor="middle">{int(count)}</text>'
+    score_dist_svg = (
+        f'<svg width="{chart_width}" height="{chart_height}" xmlns="http://www.w3.org/2000/svg">'
+        f"{svg_bars}</svg>"
+    )
 
     # Header columns for per-sample table
     metric_header_cells = ""
@@ -190,6 +207,7 @@ def format_html_report(
   tr:last-child td {{ border-bottom: none; }}
   h2 {{ font-size: 1.2rem; margin-bottom: 0.8rem; }}
   .section {{ margin-bottom: 2rem; }}
+  svg {{ display: block; margin: 1rem 0; }}
   footer {{ color: #64748b; font-size: 0.8rem; margin-top: 2rem; }}
 </style>
 </head>
@@ -230,6 +248,11 @@ def format_html_report(
 <tr><th>Metric</th><th>Mean</th><th>Min</th><th>Max</th><th>Status</th></tr>
 {metric_rows}
 </table>
+</div>
+
+<div class="section">
+<h2>📈 Score Distribution</h2>
+{score_dist_svg}
 </div>
 
 <div class="section">

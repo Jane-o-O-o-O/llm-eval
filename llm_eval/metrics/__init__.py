@@ -120,16 +120,16 @@ def get_default_registry(judge_config: JudgeConfig | None = None) -> MetricRegis
     Returns:
         A MetricRegistry with all built-in metrics registered.
     """
-    from llm_eval.metrics.faithfulness import FaithfulnessMetric
+    from llm_eval.metrics.answer_correctness import AnswerCorrectnessMetric
     from llm_eval.metrics.answer_relevancy import AnswerRelevancyMetric
+    from llm_eval.metrics.answer_similarity import AnswerSimilarityMetric
+    from llm_eval.metrics.coherence import CoherenceMetric
     from llm_eval.metrics.context_precision import ContextPrecisionMetric
     from llm_eval.metrics.context_recall import ContextRecallMetric
+    from llm_eval.metrics.faithfulness import FaithfulnessMetric
     from llm_eval.metrics.format_compliance import FormatComplianceMetric
-    from llm_eval.metrics.toxicity import ToxicityMetric
-    from llm_eval.metrics.answer_correctness import AnswerCorrectnessMetric
-    from llm_eval.metrics.coherence import CoherenceMetric
     from llm_eval.metrics.hallucination import HallucinationMetric
-    from llm_eval.metrics.answer_similarity import AnswerSimilarityMetric
+    from llm_eval.metrics.toxicity import ToxicityMetric
 
     registry = MetricRegistry()
     registry.register(FaithfulnessMetric(judge_config=judge_config))

@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-05-13
+
+### Added
+- **`--quiet` / `-q` flag**: Minimal output mode for CI/CD pipelines. Suppresses verbose progress and report output, only shows pass/fail result.
+- **SVG score distribution chart**: HTML reports now include an inline SVG histogram showing the distribution of per-sample scores across score buckets.
+- **`py.typed` marker**: PEP 561 compliance for type checker support (mypy, pyright).
+- **GitHub Actions CI workflow**: Automated testing on Python 3.10/3.11/3.12 with ruff linting.
+- **Ruff lint rules**: Added select rules (E, F, W, I, N, UP, B, SIM) and format configuration in `pyproject.toml`.
+- **Version consistency test**: Validates `__version__` matches `pyproject.toml` version.
+- **`__main__` entry point tests**: Tests for `python -m llm_eval` commands.
+- 263 tests (up from 252).
+
+### Changed
+- Version bumped to 0.5.0.
+
 ## [0.4.0] - 2026-05-13
 
 ### Added

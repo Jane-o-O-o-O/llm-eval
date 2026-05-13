@@ -7,6 +7,7 @@ import httpx
 import pytest
 import yaml
 from click.testing import CliRunner
+
 from llm_eval.cli import main
 from llm_eval.models import EvalResult, MetricResult
 from llm_eval.regression import check_regression, load_baseline
@@ -202,7 +203,15 @@ class TestRegressionMode:
         runner = CliRunner()
         result = runner.invoke(
             main,
-            ["run", "--config", str(config_path), "--fail-on", "regression", "--baseline", str(baseline_path)],
+            [
+                "run",
+                "--config",
+                str(config_path),
+                "--fail-on",
+                "regression",
+                "--baseline",
+                str(baseline_path),
+            ],
         )
         # Will fail because mock HTTP error
         assert result.exit_code != 0

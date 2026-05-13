@@ -3,6 +3,7 @@
 from unittest.mock import AsyncMock, patch
 
 import pytest
+
 from llm_eval.metrics.answer_relevancy import AnswerRelevancyMetric
 from llm_eval.models import Sample
 
