@@ -36,6 +36,11 @@ Building LLM-powered apps is easy. **Knowing if they work well is hard.**
 | 📋 **Report Metadata** | Timestamps, versions, git hash embedded in all reports |
 | 🔀 **Multi-Format Output** | `--output json,html` for multiple report files at once |
 | 🪶 **Lightweight** | Minimal dependencies — `click` + `httpx` + your API key |
+| 🐍 **Python SDK** | `from llm_eval import evaluate` for programmatic use |
+| 💾 **Judge Cache** | SQLite-backed cache saves API costs during development |
+| 📂 **Dataset Tools** | `llm-eval dataset info|validate|sample` to inspect datasets |
+| 📝 **Markdown Reports** | `--output markdown` for GitHub PR comments |
+| 🏷️ **Run History** | Automatic run tracking with `--tag` and `llm-eval history` |
 
 ---
 
@@ -323,6 +328,9 @@ llm-eval run --config evals.yaml --output html --report report.html
 
 # Multiple formats at once — generates report.json and report.html
 llm-eval run --config evals.yaml --output json,html --report report
+
+# Markdown — for GitHub PR comments
+llm-eval run --config evals.yaml --output markdown --report report.md
 ```
 
 ---
@@ -343,6 +351,78 @@ llm-eval init --preset summarization --output evals.yaml
 
 # List all available presets
 llm-eval presets
+```
+
+---
+
+## 🐍 Python SDK
+
+Use llm-eval programmatically without the CLI:
+
+```python
+import asyncio
+from llm_eval import evaluate
+
+async def main():
+    output = await evaluate(
+        samples=[
+            {"query": "What is Python?", "context": ["Python is a language."], "answer": "A programming language."},
+        ],
+        metrics=["faithfulness", "answer_relevancy"],
+        model="gpt-4o",
+    )
+    print(f"Score: {output.overall_score:.2f}")
+    print(f"Passed: {output.passed}")
+    print(output.terminal)  # pre-formatted report
+
+asyncio.run(main())
+```
+
+Or evaluate from a file:
+
+```python
+from llm_eval import evaluate_file
+
+output = await evaluate_file(
+    path="samples.jsonl",
+    config="evals.yaml",
+)
+```
+
+---
+
+## 📂 Dataset Tools
+
+Inspect and validate your evaluation datasets:
+
+```bash
+# Show dataset statistics
+llm-eval dataset info samples.jsonl
+
+# Validate for common issues
+llm-eval dataset validate samples.jsonl
+
+# Preview random samples
+llm-eval dataset sample samples.jsonl -n 5
+```
+
+---
+
+## 🏷️ Run History
+
+Track and compare evaluation runs over time:
+
+```bash
+# Tag a baseline run
+llm-eval run --config evals.yaml --tag baseline
+
+# Tag an experiment
+llm-eval run --config evals.yaml --tag experiment-1
+
+# Browse history
+llm-eval history
+llm-eval history --tag baseline
+llm-eval history -n 5 --details
 ```
 
 ---

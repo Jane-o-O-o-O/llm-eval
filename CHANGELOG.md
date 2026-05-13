@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-05-14
+
+### Added
+- **Python SDK**: `from llm_eval import evaluate, evaluate_file` — programmatic API for evaluating samples without the CLI. Returns `EvalOutput` with results, summary, and pre-formatted reports.
+- **Judge response cache**: SQLite-backed cache (`~/.llm-eval/cache.db`) that stores LLM judge responses. Avoids redundant API calls during iterative development. Configurable max entries with LRU eviction.
+- **`llm-eval dataset` subcommand**: Three sub-commands — `info` (dataset statistics), `validate` (check for common issues), `sample` (show random samples). Works with JSONL and CSV datasets.
+- **Markdown report format**: `--output markdown` generates GitHub-flavored Markdown reports suitable for PR comments and documentation. Auto-omits per-sample tables for large datasets.
+- **Evaluation run history**: All `llm-eval run` results are automatically saved to `~/.llm-eval/history/`. Browse with `llm-eval history`.
+- **`--tag` option**: Tag evaluation runs for easy organization (e.g. `--tag baseline`, `--tag experiment-1`).
+- **`--no-cache` option**: Disable judge response caching for a specific run.
+- **`--save-history` / `--no-save-history` option**: Control whether runs are saved to history.
+- **`llm-eval history` command**: Browse past evaluation runs with filtering by tag and limit.
+- 401 tests (up from 319).
+
+### Changed
+- `__init__.py` now exports `evaluate`, `evaluate_file`, and `EvalOutput` for SDK usage.
+- `cli.py` valid output formats now include `markdown`.
+- Version bumped to 0.7.0.
+
 ## [0.6.0] - 2026-05-13
 
 ### Added

@@ -106,7 +106,7 @@ def load_csv(filepath: str) -> list[Sample]:
         if missing_cols:
             raise ValueError(f"CSV missing required column(s): {missing_cols}")
 
-        for row_num, row in enumerate(reader, start=2):  # row 1 is header
+        for _row_num, row in enumerate(reader, start=2):  # row 1 is header
             context = _parse_csv_context(row.get("context", ""))
 
             metadata: dict = {}

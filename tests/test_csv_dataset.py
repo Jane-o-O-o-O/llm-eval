@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import json
-
 import pytest
 
 from llm_eval.dataset import load_csv, load_dataset

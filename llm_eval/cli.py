@@ -19,6 +19,8 @@ from llm_eval.compare import (
 )
 from llm_eval.dataset import load_dataset
 from llm_eval.evaluator import Evaluator
+from llm_eval.history import list_runs, load_run, save_run
+from llm_eval.markdown_report import format_markdown_report
 from llm_eval.metrics import get_default_registry
 from llm_eval.models import EvalConfig
 from llm_eval.plugins import load_custom_metrics
@@ -236,6 +238,19 @@ def init(output: str, preset: str | None) -> None:
     default=False,
     help="Minimal output for CI/CD. Only prints pass/fail.",
 )
+@click.option("--tag", default=None, help="Tag this evaluation run for history tracking.")
+@click.option(
+    "--no-cache",
+    is_flag=True,
+    default=False,
+    help="Disable judge response caching for this run.",
+)
+@click.option(
+    "--save-history",
+    is_flag=True,
+    default=True,
+    help="Save run to history (default: on).",
+)
 def run(
     config_path: str,
     output_format: str | None,
@@ -249,6 +264,9 @@ def run(
     sample: int | None,
     seed: int | None,
     quiet: bool,
+    tag: str | None,
+    no_cache: bool,
+    save_history: bool,
 ) -> None:
     """Run evaluations based on a config file."""
     # Load config
@@ -414,11 +432,23 @@ def run(
                 click.echo(
                     f"\n❌ FAILED: Score {summary['overall_score']:.2f} < threshold {eval_threshold}"
                 )
+                # Save to history even on failure
+                if save_history:
+                    hist_path = save_run(
+                        results, summary, tag=tag, config_path=config_path
+                    )
+                    _echo(f"   📂 Run saved to: {hist_path}", quiet)
                 sys.exit(1)
             else:
                 click.echo(
                     f"\n✅ PASSED: Score {summary['overall_score']:.2f} >= threshold {eval_threshold}"
                 )
+                # Save to history on success
+                if save_history:
+                    hist_path = save_run(
+                        results, summary, tag=tag, config_path=config_path
+                    )
+                    _echo(f"   📂 Run saved to: {hist_path}", quiet)
 
 
 @main.command("metrics")
@@ -505,7 +535,7 @@ def validate(config_path: str) -> None:
     # Check defaults
     defaults = raw_config.get("defaults", {})
     fmt = defaults.get("output_format", "terminal")
-    valid_formats = {"terminal", "json", "csv", "html"}
+    valid_formats = {"terminal", "json", "csv", "html", "markdown"}
     for f in fmt.split(","):
         if f.strip() not in valid_formats:
             errors.append(f"Unknown output format: {f.strip()}")
@@ -592,6 +622,147 @@ def list_presets() -> None:
     click.echo("Usage: llm-eval init --preset rag")
 
 
+# ─── Dataset subcommand group ────────────────────────────────────────────
+
+
+@main.group()
+def dataset() -> None:
+    """Inspect and manage evaluation datasets."""
+
+
+@dataset.command("info")
+@click.argument("path", type=click.Path(exists=True))
+def dataset_info(path: str) -> None:
+    """Show dataset statistics and sample count."""
+    try:
+        samples = load_dataset(path)
+    except (FileNotFoundError, ValueError) as exc:
+        click.echo(f"❌ Error: {exc}", err=True)
+        sys.exit(1)
+
+    click.echo(f"📊 Dataset: {path}")
+    click.echo(f"   Samples: {len(samples)}")
+
+    # Field analysis
+    has_reference = sum(1 for s in samples if s.reference)
+    has_context = sum(1 for s in samples if s.context)
+    avg_context = sum(len(s.context) for s in samples) / len(samples) if samples else 0
+    avg_query_len = sum(len(s.query) for s in samples) / len(samples) if samples else 0
+    avg_answer_len = sum(len(s.answer) for s in samples) / len(samples) if samples else 0
+
+    click.echo(f"   With reference: {has_reference}/{len(samples)}")
+    click.echo(f"   With context: {has_context}/{len(samples)}")
+    click.echo(f"   Avg context chunks: {avg_context:.1f}")
+    click.echo(f"   Avg query length: {avg_query_len:.0f} chars")
+    click.echo(f"   Avg answer length: {avg_answer_len:.0f} chars")
+
+    # Show first few samples
+    click.echo("\n📋 First sample:")
+    s = samples[0]
+    click.echo(f"   Query: {s.query[:100]}{'...' if len(s.query) > 100 else ''}")
+    click.echo(f"   Answer: {s.answer[:100]}{'...' if len(s.answer) > 100 else ''}")
+    if s.context:
+        click.echo(f"   Context: {len(s.context)} chunk(s)")
+
+
+@dataset.command("validate")
+@click.argument("path", type=click.Path(exists=True))
+def dataset_validate(path: str) -> None:
+    """Validate a dataset file for common issues."""
+    errors: list[str] = []
+    warnings: list[str] = []
+
+    try:
+        samples = load_dataset(path)
+    except (FileNotFoundError, ValueError) as exc:
+        click.echo(f"❌ Dataset error: {exc}", err=True)
+        sys.exit(1)
+
+    for i, sample in enumerate(samples):
+        idx = i + 1
+        if not sample.query.strip():
+            errors.append(f"Sample #{idx}: Empty query")
+        if not sample.answer.strip():
+            errors.append(f"Sample #{idx}: Empty answer")
+        if not sample.context:
+            warnings.append(f"Sample #{idx}: No context (ok for non-RAG tasks)")
+        if sample.query == sample.answer:
+            warnings.append(f"Sample #{idx}: Query identical to answer")
+
+    if errors:
+        click.echo(f"❌ Validation failed ({len(errors)} error(s)):\n")
+        for err in errors:
+            click.echo(f"  ❌ {err}")
+        sys.exit(1)
+    else:
+        click.echo(f"✅ Dataset is valid! ({len(samples)} samples)")
+        if warnings:
+            for w in warnings:
+                click.echo(f"  ⚠️  {w}")
+
+
+@dataset.command("sample")
+@click.argument("path", type=click.Path(exists=True))
+@click.option("-n", "--count", type=int, default=3, help="Number of samples to show.")
+@click.option("--seed", type=int, default=None, help="Random seed for reproducibility.")
+def dataset_sample(path: str, count: int, seed: int | None) -> None:
+    """Show random samples from a dataset."""
+    try:
+        samples = load_dataset(path)
+    except (FileNotFoundError, ValueError) as exc:
+        click.echo(f"❌ Error: {exc}", err=True)
+        sys.exit(1)
+
+    rng = random.Random(seed)
+    selected = rng.sample(samples, min(count, len(samples)))
+
+    for i, s in enumerate(selected, 1):
+        click.echo(f"\n{'='*60}")
+        click.echo(f"Sample #{i}")
+        click.echo(f"{'='*60}")
+        click.echo(f"Query:    {s.query}")
+        click.echo(f"Answer:   {s.answer}")
+        if s.context:
+            for j, ctx in enumerate(s.context):
+                click.echo(f"Context[{j}]: {ctx[:200]}{'...' if len(ctx) > 200 else ''}")
+        if s.reference:
+            click.echo(f"Reference: {s.reference[:200]}{'...' if len(s.reference) > 200 else ''}")
+
+
+# ─── History command ─────────────────────────────────────────────────────
+
+
+@main.command("history")
+@click.option("--tag", default=None, help="Filter runs by tag.")
+@click.option("-n", "--limit", type=int, default=10, help="Number of runs to show.")
+@click.option("--details", is_flag=True, default=False, help="Show per-metric details.")
+def history_cmd(tag: str | None, limit: int, details: bool) -> None:
+    """Browse past evaluation runs."""
+    runs = list_runs(tag=tag, limit=limit)
+
+    if not runs:
+        click.echo("📭 No evaluation runs found.")
+        return
+
+    click.echo(f"📂 Evaluation History ({len(runs)} runs)\n")
+    click.echo(f"{'Timestamp':<22} {'Tag':<15} {'Score':<10} {'Samples':<8} {'File'}")
+    click.echo("─" * 80)
+    for r in runs:
+        tag_str = r["tag"] or "—"
+        ts = r["timestamp"][:19].replace("T", " ") if r["timestamp"] else "?"
+        click.echo(
+            f"{ts:<22} {tag_str:<15} {r['overall_score']:<10.4f} "
+            f"{r['total_samples']:<8} {r['file']}"
+        )
+
+    if details and runs:
+        click.echo(f"\n📊 Details for latest run: {runs[0]['file']}")
+        run_data = load_run(runs[0]["path"])
+        summary = run_data.get("summary", {})
+        for metric_name, scores in summary.get("metric_scores", {}).items():
+            click.echo(f"   {metric_name}: mean={scores['mean']:.4f}")
+
+
 def _format_report(fmt: str, results, summary, metadata: dict | None = None) -> str:
     """Format the report based on the specified format."""
     metadata = metadata or {}
@@ -601,6 +772,8 @@ def _format_report(fmt: str, results, summary, metadata: dict | None = None) -> 
         return format_csv_report(results, metadata)
     elif fmt == "html":
         return format_html_report(results, summary, metadata)
+    elif fmt == "markdown":
+        return format_markdown_report(results, summary, metadata)
     else:
         return format_terminal_report(results, summary, metadata)
 
