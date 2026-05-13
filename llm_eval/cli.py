@@ -11,8 +11,13 @@ import sys
 import click
 import yaml
 
-from llm_eval.compare import compare_reports, format_terminal_comparison, load_report
-from llm_eval.dataset import load_jsonl
+from llm_eval.compare import (
+    compare_reports,
+    format_html_comparison,
+    format_terminal_comparison,
+    load_report,
+)
+from llm_eval.dataset import load_dataset
 from llm_eval.evaluator import Evaluator
 from llm_eval.metrics import get_default_registry
 from llm_eval.models import EvalConfig
@@ -23,16 +28,22 @@ from llm_eval.report import (
     format_html_report,
     format_json_report,
     format_terminal_report,
+    get_report_metadata,
 )
 
 
-def _echo(msg: str, quiet: bool = False) -> None:  # noqa: F811
+def _echo(msg: str, quiet: bool = False) -> None:
     """Print message unless quiet mode is enabled."""
     if not quiet:
         click.echo(msg)
 
 
-INIT_CONFIG_TEMPLATE = """\
+# ─── Config presets ───────────────────────────────────────────────────────
+
+PRESETS: dict[str, dict] = {
+    "rag": {
+        "description": "RAG pipeline evaluation (faithfulness + relevancy + context)",
+        "config": """\
 judge:
   model: gpt-4o
   temperature: 0
@@ -43,19 +54,108 @@ defaults:
   output_format: terminal
 
 evaluations:
-  - name: "My RAG Pipeline"
-    type: rag
+  - name: "RAG Pipeline Evaluation"
     dataset: samples.jsonl
     metrics:
       - faithfulness
       - answer_relevancy
-"""
-
-INIT_SAMPLES_TEMPLATE = """\
+      - context_precision
+      - context_recall
+""",
+        "samples": """\
 {"query": "What is the refund policy?", "context": ["Refunds are processed within 5 business days."], "answer": "Refunds take up to 5 business days.", "reference": "Refunds are processed within 5 business days."}
 {"query": "How do I reset my password?", "context": ["Click 'Forgot Password' on the login page."], "answer": "Go to the login page and click 'Forgot Password'.", "reference": "Navigate to login and click 'Forgot Password' to receive a reset email."}
-"""
+""",
+    },
+    "chatbot": {
+        "description": "Chatbot quality evaluation (coherence + relevancy + safety)",
+        "config": """\
+judge:
+  model: gpt-4o
+  temperature: 0
 
+defaults:
+  threshold: 0.7
+  parallel: 5
+  output_format: terminal
+
+evaluations:
+  - name: "Chatbot Quality Check"
+    dataset: samples.jsonl
+    metrics:
+      - answer_relevancy
+      - coherence
+      - toxicity
+""",
+        "samples": """\
+{"query": "Tell me a joke", "context": [], "answer": "Why did the chicken cross the road? To get to the other side!"}
+{"query": "What's the capital of France?", "context": ["France is a country in Western Europe."], "answer": "The capital of France is Paris."}
+""",
+    },
+    "summarization": {
+        "description": "Summarization quality (faithfulness + hallucination + format)",
+        "config": """\
+judge:
+  model: gpt-4o
+  temperature: 0
+
+defaults:
+  threshold: 0.75
+  parallel: 5
+  output_format: terminal
+
+evaluations:
+  - name: "Summarization Quality"
+    dataset: samples.jsonl
+    metrics:
+      - faithfulness
+      - hallucination
+      - answer_similarity
+      - coherence
+""",
+        "samples": """\
+{"query": "Summarize the following article", "context": ["The article discusses climate change effects on polar bears."], "answer": "Climate change is negatively impacting polar bear populations.", "reference": "Climate change is causing habitat loss for polar bears, leading to population decline."}
+""",
+    },
+}
+
+
+def _write_outputs(
+    fmt: str,
+    results: list,
+    summary: dict,
+    report_path: str | None,
+    quiet: bool,
+    metadata: dict | None = None,
+) -> None:
+    """Write report output in one or more formats.
+
+    Supports comma-separated formats like 'json,html'.
+    When multiple formats and a report_path are specified, appends the format
+    extension to the base path (e.g., report.json, report.html).
+    """
+    formats = [f.strip() for f in fmt.split(",") if f.strip()]
+    metadata = metadata or {}
+
+    for single_fmt in formats:
+        report_content = _format_report(single_fmt, results, summary, metadata)
+
+        if report_path and len(formats) > 1:
+            # Multi-format: append extension
+            base, _ = os.path.splitext(report_path)
+            actual_path = f"{base}.{single_fmt}" if single_fmt != "terminal" else report_path
+            with open(actual_path, "w", encoding="utf-8") as f:
+                f.write(report_content)
+            _echo(f"   📄 Report saved to: {actual_path}", quiet)
+        elif report_path:
+            with open(report_path, "w", encoding="utf-8") as f:
+                f.write(report_content)
+            _echo(f"   📄 Report saved to: {report_path}", quiet)
+        elif not quiet:
+            click.echo(report_content)
+
+
+# ─── Main CLI group ───────────────────────────────────────────────────────
 
 @click.group()
 @click.version_option(package_name="llm-eval")
@@ -65,19 +165,34 @@ def main() -> None:
 
 @main.command()
 @click.option("--output", "-o", default="evals.yaml", help="Output config file path.")
-def init(output: str) -> None:
+@click.option(
+    "--preset",
+    type=click.Choice(list(PRESETS.keys())),
+    default=None,
+    help="Use a preset config template (rag, chatbot, summarization).",
+)
+def init(output: str, preset: str | None) -> None:
     """Initialize a new evaluation project with sample config and dataset."""
-    click.echo(f"📝 Creating evaluation config: {output}")
+    if preset:
+        preset_data = PRESETS[preset]
+        config_content = preset_data["config"]
+        samples_content = preset_data["samples"]
+        click.echo(f"📝 Creating {preset} evaluation config: {output}")
+    else:
+        config_content = PRESETS["rag"]["config"]
+        samples_content = PRESETS["rag"]["samples"]
+        click.echo(f"📝 Creating evaluation config: {output}")
+
     with open(output, "w", encoding="utf-8") as f:
-        f.write(INIT_CONFIG_TEMPLATE)
+        f.write(config_content)
 
     dataset_path = os.path.join(os.path.dirname(output) or ".", "samples.jsonl")
     click.echo(f"📦 Creating sample dataset: {dataset_path}")
     with open(dataset_path, "w", encoding="utf-8") as f:
-        f.write(INIT_SAMPLES_TEMPLATE)
+        f.write(samples_content)
 
-    click.echo("✅ Project initialized! Edit evals.yaml and samples.jsonl to get started.")
-    click.echo("   Then run: llm-eval run --config evals.yaml")
+    click.echo("✅ Project initialized! Edit the config and dataset to get started.")
+    click.echo(f"   Then run: llm-eval run --config {output}")
 
 
 @main.command()
@@ -87,7 +202,7 @@ def init(output: str) -> None:
     "-o",
     "output_format",
     default=None,
-    help="Output format: terminal, json, csv, html.",
+    help="Output format(s): terminal, json, csv, html (comma-separated for multiple).",
 )
 @click.option("--report", "-r", "report_path", default=None, help="Write report to file.")
 @click.option("--threshold", "-t", type=float, default=None, help="Override pass/fail threshold.")
@@ -149,6 +264,9 @@ def run(
         config.threshold = threshold
     fmt = output_format or config.output_format
 
+    # Build report metadata
+    metadata = get_report_metadata(config_path=config_path)
+
     # Dry-run mode: validate and print plan
     if dry_run:
         click.echo("🔍 DRY RUN — Validation Report")
@@ -184,7 +302,7 @@ def run(
                 ds_path = os.path.join(config_dir, ds_path)
             if os.path.exists(ds_path):
                 try:
-                    samples = load_jsonl(ds_path)
+                    samples = load_dataset(ds_path)
                     click.echo(f"      ✅ Dataset: {len(samples)} samples")
                 except ValueError as exc:
                     click.echo(f"      ❌ Dataset error: {exc}")
@@ -219,7 +337,7 @@ def run(
             dataset_path = os.path.join(config_dir, dataset_path)
 
         try:
-            samples = load_jsonl(dataset_path)
+            samples = load_dataset(dataset_path)
         except (FileNotFoundError, ValueError) as exc:
             click.echo(f"❌ Dataset error: {exc}", err=True)
             sys.exit(1)
@@ -272,15 +390,8 @@ def run(
 
         summary = evaluator.summarize(results)
 
-        # Output report
-        report_content = _format_report(fmt, results, summary)
-
-        if report_path:
-            with open(report_path, "w", encoding="utf-8") as f:
-                f.write(report_content)
-            _echo(f"   📄 Report saved to: {report_path}", quiet)
-        elif not quiet:
-            click.echo(report_content)
+        # Output report (supports multi-format)
+        _write_outputs(fmt, results, summary, report_path, quiet, metadata)
 
         # Failure mode
         if fail_on == "regression" and baseline_path:
@@ -311,17 +422,27 @@ def run(
 
 
 @main.command("metrics")
-def metrics_list() -> None:
+@click.option(
+    "--verbose", "-v", is_flag=True, default=False, help="Show detailed metric information."
+)
+def metrics_list(verbose: bool) -> None:
     """List all available evaluation metrics."""
     registry = get_default_registry()
     names = registry.list_metrics()
 
     click.echo("📋 Available Metrics\n")
-    click.echo(f"{'Name':<22} {'Description'}")
-    click.echo("─" * 60)
-    for name in names:
-        metric = registry.get(name)
-        click.echo(f"{metric.name:<22} {metric.description}")
+    if verbose:
+        for name in names:
+            metric = registry.get(name)
+            click.echo(f"  🔹 {name}")
+            click.echo(f"     {metric.description}")
+            click.echo("")
+    else:
+        click.echo(f"{'Name':<22} {'Description'}")
+        click.echo("─" * 60)
+        for name in names:
+            metric = registry.get(name)
+            click.echo(f"{metric.name:<22} {metric.description}")
     click.echo(f"\nTotal: {len(names)} metrics")
 
 
@@ -384,8 +505,10 @@ def validate(config_path: str) -> None:
     # Check defaults
     defaults = raw_config.get("defaults", {})
     fmt = defaults.get("output_format", "terminal")
-    if fmt not in ("terminal", "json", "csv", "html"):
-        errors.append(f"Unknown output format: {fmt}")
+    valid_formats = {"terminal", "json", "csv", "html"}
+    for f in fmt.split(","):
+        if f.strip() not in valid_formats:
+            errors.append(f"Unknown output format: {f.strip()}")
 
     # Report
     if errors:
@@ -411,7 +534,11 @@ def validate(config_path: str) -> None:
 @click.option("--label-a", default="Baseline", help="Label for the first report.")
 @click.option("--label-b", default="Current", help="Label for the second report.")
 @click.option(
-    "--output", "-o", "output_format", default="terminal", help="Output format: terminal, json."
+    "--output",
+    "-o",
+    "output_format",
+    default="terminal",
+    help="Output format: terminal, json, html.",
 )
 @click.option("--report", "-r", "report_path", default=None, help="Write comparison to file.")
 def compare(
@@ -441,6 +568,8 @@ def compare(
 
     if output_format == "json":
         content = json.dumps(comparison, indent=2, ensure_ascii=False)
+    elif output_format == "html":
+        content = format_html_comparison(comparison)
     else:
         content = format_terminal_comparison(comparison)
 
@@ -452,16 +581,28 @@ def compare(
         click.echo(content)
 
 
-def _format_report(fmt: str, results, summary) -> str:
+@main.command("presets")
+def list_presets() -> None:
+    """List available config presets."""
+    click.echo("📋 Available Presets\n")
+    for name, data in PRESETS.items():
+        click.echo(f"  🔹 {name}")
+        click.echo(f"     {data['description']}")
+        click.echo("")
+    click.echo("Usage: llm-eval init --preset rag")
+
+
+def _format_report(fmt: str, results, summary, metadata: dict | None = None) -> str:
     """Format the report based on the specified format."""
+    metadata = metadata or {}
     if fmt == "json":
-        return format_json_report(results, summary)
+        return format_json_report(results, summary, metadata)
     elif fmt == "csv":
-        return format_csv_report(results)
+        return format_csv_report(results, metadata)
     elif fmt == "html":
-        return format_html_report(results, summary)
+        return format_html_report(results, summary, metadata)
     else:
-        return format_terminal_report(results, summary)
+        return format_terminal_report(results, summary, metadata)
 
 
 if __name__ == "__main__":

@@ -6,23 +6,92 @@ import csv
 import html
 import io
 import json
+import platform
+import subprocess
+import sys
+from datetime import datetime, timezone
 from typing import Any
 
 from llm_eval.models import EvalResult
 
 
-def format_terminal_report(results: list[EvalResult], summary: dict[str, Any]) -> str:
+def get_report_metadata(config_path: str | None = None) -> dict[str, Any]:
+    """Collect metadata to embed in reports.
+
+    Args:
+        config_path: Optional path to the config file used.
+
+    Returns:
+        Dictionary with timestamp, version, python version, platform, git hash.
+    """
+    from llm_eval import __version__
+
+    metadata: dict[str, Any] = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "version": __version__,
+        "python_version": sys.version.split()[0],
+        "platform": platform.platform(),
+    }
+
+    if config_path:
+        metadata["config_path"] = config_path
+
+    # Try to get git hash
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            cwd=config_path and __import__("os").path.dirname(__import__("os").path.abspath(config_path)) or None,
+        )
+        if result.returncode == 0:
+            metadata["git_hash"] = result.stdout.strip()
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        pass
+
+    return metadata
+
+
+def _metadata_header_lines(metadata: dict[str, Any]) -> list[str]:
+    """Format metadata as terminal header lines."""
+    if not metadata:
+        return []
+    lines = ["┌─────────────────────────────────────────────────┐"]
+    lines.append("│          📋 Report Metadata                     │")
+    lines.append("├─────────────────────────────────────────────────┤")
+    for key in ("timestamp", "version", "python_version", "platform", "config_path", "git_hash"):
+        if key in metadata:
+            label = key.replace("_", " ").title()
+            val = str(metadata[key])
+            lines.append(f"│ {label:<16} {val:<30} │")
+    lines.append("└─────────────────────────────────────────────────┘")
+    return lines
+
+
+def format_terminal_report(
+    results: list[EvalResult],
+    summary: dict[str, Any],
+    metadata: dict[str, Any] | None = None,
+) -> str:
     """Format evaluation results as a terminal-friendly table.
 
     Args:
         results: List of evaluation results.
         summary: Summary statistics dictionary.
+        metadata: Optional report metadata.
 
     Returns:
         Formatted string for terminal display.
     """
     threshold = summary.get("threshold", 0.7)
     lines: list[str] = []
+
+    # Metadata header
+    if metadata:
+        lines.extend(_metadata_header_lines(metadata))
+        lines.append("")
+
     lines.append("┌─────────────────────────────────────────────────┐")
     lines.append("│          🧪 llm-eval — Evaluation Report         │")
     lines.append("├─────────────────────┬───────────┬───────────────┤")
@@ -51,28 +120,38 @@ def format_terminal_report(results: list[EvalResult], summary: dict[str, Any]) -
     return "\n".join(lines)
 
 
-def format_json_report(results: list[EvalResult], summary: dict[str, Any]) -> str:
+def format_json_report(
+    results: list[EvalResult],
+    summary: dict[str, Any],
+    metadata: dict[str, Any] | None = None,
+) -> str:
     """Format evaluation results as JSON.
 
     Args:
         results: List of evaluation results.
         summary: Summary statistics dictionary.
+        metadata: Optional report metadata.
 
     Returns:
         JSON string of the report.
     """
-    report = {
-        "summary": summary,
-        "results": [r.to_dict() for r in results],
-    }
+    report: dict[str, Any] = {}
+    if metadata:
+        report["metadata"] = metadata
+    report["summary"] = summary
+    report["results"] = [r.to_dict() for r in results]
     return json.dumps(report, indent=2, ensure_ascii=False)
 
 
-def format_csv_report(results: list[EvalResult]) -> str:
+def format_csv_report(
+    results: list[EvalResult],
+    metadata: dict[str, Any] | None = None,
+) -> str:
     """Format evaluation results as CSV.
 
     Args:
         results: List of evaluation results.
+        metadata: Optional report metadata (written as CSV comment lines).
 
     Returns:
         CSV string of the report.
@@ -88,6 +167,13 @@ def format_csv_report(results: list[EvalResult]) -> str:
                 metric_names.append(m.name)
 
     output = io.StringIO()
+
+    # Write metadata as comment lines
+    if metadata:
+        for key in ("timestamp", "version", "config_path", "git_hash"):
+            if key in metadata:
+                output.write(f"# {key}: {metadata[key]}\n")
+
     writer = csv.writer(output)
     header = ["sample_index", "overall_score"] + metric_names
     writer.writerow(header)
@@ -101,12 +187,19 @@ def format_csv_report(results: list[EvalResult]) -> str:
     return output.getvalue()
 
 
-def format_html_report(results: list[EvalResult], summary: dict[str, Any]) -> str:
+def format_html_report(
+    results: list[EvalResult],
+    summary: dict[str, Any],
+    metadata: dict[str, Any] | None = None,
+) -> str:
     """Format evaluation results as a self-contained HTML report.
+
+    Includes expandable per-sample details with metric reasoning.
 
     Args:
         results: List of evaluation results.
         summary: Summary statistics dictionary.
+        metadata: Optional report metadata.
 
     Returns:
         Self-contained HTML string with embedded CSS.
@@ -119,6 +212,17 @@ def format_html_report(results: list[EvalResult], summary: dict[str, Any]) -> st
     fail_count = summary.get("fail_count", 0)
     overall_status = "PASS" if overall >= threshold else "FAIL"
     overall_color = "#22c55e" if overall >= threshold else "#ef4444"
+
+    # Metadata section
+    metadata_html = ""
+    if metadata:
+        meta_items = ""
+        for key in ("timestamp", "version", "python_version", "platform", "config_path", "git_hash"):
+            if key in metadata:
+                label = key.replace("_", " ").title()
+                meta_items += f'<span class="meta-item"><b>{html.escape(label)}:</b> {html.escape(str(metadata[key]))}</span> '
+        if meta_items:
+            metadata_html = f'<div class="metadata">{meta_items}</div>'
 
     # Build metric summary rows
     metric_rows = ""
@@ -136,21 +240,59 @@ def format_html_report(results: list[EvalResult], summary: dict[str, Any]) -> st
             f"</tr>\n"
         )
 
-    # Build per-sample rows
+    # Build per-sample rows with expandable details
     sample_rows = ""
     for r in results:
         metric_cells = ""
+        detail_sections = ""
         for m in r.metrics:
             m_color = "#22c55e" if m.score >= threshold else "#ef4444"
             metric_cells += f'<td style="color:{m_color}">{m.score:.4f}</td>'
+
+            # Build detail content for this metric
+            details = m.details
+            detail_content = ""
+            if details.get("reasoning"):
+                detail_content += f'<p><b>Reasoning:</b> {html.escape(details["reasoning"])}</p>'
+            if details.get("hits"):
+                detail_content += f'<p><b>Pattern Hits:</b> {html.escape(", ".join(details["hits"]))}</p>'
+            if details.get("checks"):
+                for check in details["checks"]:
+                    icon = "✅" if check.get("passed") else "❌"
+                    detail_content += f'<p>{icon} <b>{html.escape(str(check.get("check", "")))}</b>: {html.escape(str(check.get("detail", "")))}</p>'
+            if details.get("method"):
+                detail_content += f'<p><b>Method:</b> {html.escape(details["method"])}</p>'
+            if detail_content:
+                detail_sections += (
+                    f'<div class="metric-detail">'
+                    f'<b style="color:{m_color}">{html.escape(m.name)} ({m.score:.4f})</b>'
+                    f'{detail_content}</div>'
+                )
+
         row_color = "#22c55e" if r.overall_score >= threshold else "#ef4444"
+
+        # Detail toggle
+        detail_block = ""
+        if detail_sections:
+            detail_block = (
+                f'<tr class="detail-row" id="detail-{r.sample_index}">'
+                f'<td colspan="{len(r.metrics) + 2}">'
+                f'<div class="detail-content">{detail_sections}</div>'
+                f"</td></tr>"
+            )
+
+        toggle_btn = ""
+        if detail_sections:
+            toggle_btn = f' <button class="toggle-btn" onclick="toggleDetail({r.sample_index})" title="Show details">🔍</button>'
+
         sample_rows += (
             f"<tr>"
-            f"<td>#{r.sample_index}</td>"
+            f"<td>#{r.sample_index}{toggle_btn}</td>"
             f"{metric_cells}"
             f'<td style="color:{row_color};font-weight:bold">{r.overall_score:.4f}</td>'
             f"</tr>\n"
         )
+        sample_rows += detail_block
 
     # Build SVG histogram of overall scores
     score_bins = [0.0] * 10  # 10 bins: 0-0.1, 0.1-0.2, ..., 0.9-1.0
@@ -195,6 +337,9 @@ def format_html_report(results: list[EvalResult], summary: dict[str, Any]) -> st
          background: var(--bg); color: var(--text); padding: 2rem; }}
   h1 {{ font-size: 1.8rem; margin-bottom: 0.5rem; }}
   .subtitle {{ color: #94a3b8; margin-bottom: 2rem; }}
+  .metadata {{ background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+               padding: 0.8rem 1rem; margin-bottom: 1.5rem; font-size: 0.8rem; color: #94a3b8; }}
+  .meta-item {{ margin-right: 1.5rem; }}
   .cards {{ display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 2rem; }}
   .card {{ background: var(--card); border: 1px solid var(--border); border-radius: 8px;
            padding: 1.2rem 1.5rem; min-width: 140px; }}
@@ -209,11 +354,20 @@ def format_html_report(results: list[EvalResult], summary: dict[str, Any]) -> st
   .section {{ margin-bottom: 2rem; }}
   svg {{ display: block; margin: 1rem 0; }}
   footer {{ color: #64748b; font-size: 0.8rem; margin-top: 2rem; }}
+  .toggle-btn {{ background: none; border: none; cursor: pointer; font-size: 0.8rem;
+                  padding: 0 0.3rem; opacity: 0.6; }}
+  .toggle-btn:hover {{ opacity: 1; }}
+  .detail-row {{ display: none; }}
+  .detail-row.open {{ display: table-row; }}
+  .detail-content {{ padding: 0.5rem 1rem; background: #0f172a; border-radius: 4px; }}
+  .metric-detail {{ margin-bottom: 0.8rem; }}
+  .metric-detail p {{ margin: 0.2rem 0; font-size: 0.85rem; color: #94a3b8; }}
 </style>
 </head>
 <body>
 <h1>🧪 llm-eval — Evaluation Report</h1>
 <p class="subtitle">Generated by llm-eval</p>
+{metadata_html}
 
 <div class="cards">
   <div class="card">
@@ -264,5 +418,12 @@ def format_html_report(results: list[EvalResult], summary: dict[str, Any]) -> st
 </div>
 
 <footer>Threshold: {threshold:.2f} · {total} samples evaluated</footer>
+
+<script>
+function toggleDetail(idx) {{
+  var row = document.getElementById('detail-' + idx);
+  if (row) row.classList.toggle('open');
+}}
+</script>
 </body>
 </html>"""

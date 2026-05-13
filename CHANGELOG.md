@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-05-13
+
+### Added
+- **CSV dataset support**: `load_csv()` loader with pipe-separated and JSON array context formats. Auto-detection via `load_dataset()` based on file extension.
+- **Report metadata**: All report formats (terminal, JSON, CSV, HTML) now include metadata — timestamp, version, Python version, platform, config path, git hash.
+- **Multi-format output**: `--output json,html` comma-separated format support. Generates multiple report files in one run.
+- **Config presets**: `llm-eval init --preset rag|chatbot|summarization` for quick project scaffolding with curated metric configurations.
+- **`llm-eval presets` command**: List available presets with descriptions.
+- **`--verbose` / `-v` flag for `metrics` command**: Shows detailed metric descriptions.
+- **HTML comparison report**: `llm-eval compare` now supports `--output html` with side-by-side SVG bar charts and delta indicators.
+- **Expandable HTML details**: HTML reports now show per-sample metric reasoning/details in collapsible sections with 🔍 toggle buttons.
+- 319 tests (up from 263).
+
+### Changed
+- `dataset.py` now exports `load_csv()` and `load_dataset()` in addition to `load_jsonl()`.
+- Report functions accept optional `metadata` parameter.
+- `compare.py` gained `format_html_comparison()` function.
+- Version bumped to 0.6.0.
+
 ## [0.5.0] - 2026-05-13
 
 ### Added

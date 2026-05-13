@@ -31,6 +31,10 @@ Building LLM-powered apps is easy. **Knowing if they work well is hard.**
 | 📉 **Regression Detection** | Compare against baselines to catch quality drops |
 | 🔌 **Pluggable** | Custom metrics, CI/CD integration |
 | 🤫 **Quiet Mode** | `--quiet` flag for CI/CD pipelines |
+| 📁 **CSV Support** | Load datasets from CSV or JSONL, auto-detected |
+| 🎯 **Config Presets** | `llm-eval init --preset rag|chatbot|summarization` |
+| 📋 **Report Metadata** | Timestamps, versions, git hash embedded in all reports |
+| 🔀 **Multi-Format Output** | `--output json,html` for multiple report files at once |
 | 🪶 **Lightweight** | Minimal dependencies — `click` + `httpx` + your API key |
 
 ---
@@ -58,6 +62,10 @@ export OPENAI_API_KEY="sk-..."        # for OpenAI (default judge)
 
 ```bash
 llm-eval init --output evals.yaml
+# Or use a preset for common scenarios:
+llm-eval init --preset rag --output evals.yaml
+llm-eval init --preset chatbot --output evals.yaml
+llm-eval init --preset summarization --output evals.yaml
 ```
 
 This generates a starter config and sample dataset:
@@ -284,6 +292,18 @@ evaluations:
 **Required fields:** `query`, `context`, `answer`
 **Optional fields:** `reference`, `metadata`
 
+### CSV Format
+
+You can also use CSV files. Context supports pipe-separated or JSON array formats:
+
+```csv
+query,context,answer,reference
+What is AI?,"AI is a field | It studies intelligence",AI is a branch of CS,Artificial Intelligence is...
+What is ML?,Machine learning is a subset,ML learns from data,
+```
+
+Format is auto-detected by file extension (`.csv` vs `.jsonl`/`.ndjson`).
+
 ---
 
 ## 📈 Output Formats
@@ -300,6 +320,29 @@ llm-eval run --config evals.yaml --output csv --report results.csv
 
 # HTML — shareable report with dark theme
 llm-eval run --config evals.yaml --output html --report report.html
+
+# Multiple formats at once — generates report.json and report.html
+llm-eval run --config evals.yaml --output json,html --report report
+```
+
+---
+
+## 🎯 Config Presets
+
+Quick start with curated metric configurations for common use cases:
+
+```bash
+# RAG pipeline (faithfulness + relevancy + context metrics)
+llm-eval init --preset rag --output evals.yaml
+
+# Chatbot quality (coherence + relevancy + toxicity)
+llm-eval init --preset chatbot --output evals.yaml
+
+# Summarization (faithfulness + hallucination + similarity)
+llm-eval init --preset summarization --output evals.yaml
+
+# List all available presets
+llm-eval presets
 ```
 
 ---
