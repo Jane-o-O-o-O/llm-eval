@@ -407,6 +407,8 @@ def run(
         metric_names = eval_def.get("metrics", [])
         eval_threshold = eval_def.get("threshold", config.threshold)
         eval_parallel = parallel or eval_def.get("parallel", config.judge.max_retries)
+        eval_use_cache = not no_cache
+        eval_metric_options = eval_def.get("metric_options", {})
 
         _echo(f"\n🧪 Running evaluation: {eval_name}", quiet)
 
@@ -436,6 +438,8 @@ def run(
             parallel=eval_parallel or 1,
             metric_weights=config.metric_weights or eval_def.get("metric_weights", {}),
             judge_config=config.judge,
+            use_cache=eval_use_cache,
+            metric_options=eval_metric_options,
         )
 
         # Progress bar
@@ -705,6 +709,85 @@ def validate(config_path: str) -> None:
             for warn in warnings:
                 click.echo(f"  ⚠️  {warn}")
         click.echo(f"   {len(evaluations)} evaluation(s) defined")
+
+
+@main.command()
+def doctor() -> None:
+    """Check environment and configuration for common issues."""
+    from llm_eval.cache import JudgeCache
+    from llm_eval.metrics import get_default_registry
+
+    click.echo("🩺 llm-eval Doctor\n")
+    all_ok = True
+
+    # 1. Python version
+    import sys
+    py_ver = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+    if sys.version_info >= (3, 10):
+        click.echo(f"  ✅ Python {py_ver}")
+    else:
+        click.echo(f"  ❌ Python {py_ver} (requires >= 3.10)")
+        all_ok = False
+
+    # 2. Dependencies (import_name -> package_name for pip)
+    deps = {"click": "click", "httpx": "httpx", "yaml": "PyYAML", "pydantic": "pydantic", "tqdm": "tqdm"}
+    for import_name, pkg_name in deps.items():
+        try:
+            __import__(import_name)
+            import importlib.metadata
+            try:
+                ver = importlib.metadata.version(pkg_name)
+            except importlib.metadata.PackageNotFoundError:
+                ver = "?"
+            click.echo(f"  ✅ {import_name} ({ver})")
+        except ImportError:
+            click.echo(f"  ❌ {import_name} not installed")
+            all_ok = False
+
+    # 3. API keys
+    click.echo("")
+    keys = {
+        "OPENAI_API_KEY": os.environ.get("OPENAI_API_KEY"),
+        "ANTHROPIC_API_KEY": os.environ.get("ANTHROPIC_API_KEY"),
+        "GOOGLE_API_KEY": os.environ.get("GOOGLE_API_KEY"),
+    }
+    found_any_key = False
+    for key_name, key_val in keys.items():
+        if key_val:
+            masked = key_val[:8] + "..." + key_val[-4:] if len(key_val) > 12 else "***"
+            click.echo(f"  ✅ {key_name} = {masked}")
+            found_any_key = True
+        else:
+            click.echo(f"  ⚠️  {key_name} not set")
+    if not found_any_key:
+        click.echo("  💡 No API keys found. Set at least OPENAI_API_KEY to run evaluations.")
+
+    # 4. Metrics
+    click.echo("")
+    registry = get_default_registry()
+    metric_names = registry.list_metrics()
+    click.echo(f"  ✅ {len(metric_names)} metrics available: {', '.join(metric_names)}")
+
+    # 5. Cache
+    click.echo("")
+    try:
+        cache = JudgeCache()
+        stats = cache.stats()
+        size_kb = stats["db_size_bytes"] / 1024
+        click.echo(f"  ✅ Cache: {stats['entry_count']} entries ({size_kb:.1f} KB)")
+        click.echo(f"     Path: {stats['db_path']}")
+        cache.close()
+    except Exception as exc:
+        click.echo(f"  ⚠️  Cache error: {exc}")
+
+    # 6. Version
+    from llm_eval import __version__
+    click.echo(f"\n  📦 llm-eval v{__version__}")
+
+    if all_ok:
+        click.echo("\n✅ All checks passed!")
+    else:
+        click.echo("\n❌ Some checks failed. Fix issues above.")
 
 
 @main.command()

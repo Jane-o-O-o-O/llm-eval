@@ -95,6 +95,7 @@ async def evaluate(
     judge_config = JudgeConfig(
         model=model,
         base_url=base_url,
+        api_key=None,
         temperature=temperature,
         timeout=timeout,
     )

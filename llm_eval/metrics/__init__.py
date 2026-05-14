@@ -18,13 +18,25 @@ class Metric(ABC):
     name: str
     description: str
 
-    def __init__(self, judge_config: JudgeConfig | None = None) -> None:
+    def __init__(
+        self,
+        judge_config: JudgeConfig | None = None,
+        cache: Any | None = None,
+        use_cache: bool = True,
+        metric_options: dict[str, Any] | None = None,
+    ) -> None:
         """Initialize metric with optional judge configuration.
 
         Args:
             judge_config: LLM judge configuration. Uses defaults if None.
+            cache: Optional JudgeCache instance for caching responses.
+            use_cache: Whether to use the cache. Set to False to bypass.
+            metric_options: Custom options for this metric (e.g. custom prompts).
         """
         self._judge_config = judge_config
+        self._cache = cache
+        self._use_cache = use_cache
+        self._metric_options = metric_options or {}
 
     @abstractmethod
     async def evaluate(self, sample: Sample) -> MetricResult:
@@ -50,7 +62,11 @@ class Metric(ABC):
         """
         from llm_eval.judge import Judge
 
-        judge = Judge(config=self._judge_config)
+        judge = Judge(
+            config=self._judge_config,
+            cache=self._cache,
+            use_cache=self._use_cache,
+        )
         return await judge.call(prompt)
 
 

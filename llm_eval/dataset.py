@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import json
 import os
+from collections.abc import Generator
 
 from llm_eval.models import Sample
 
@@ -155,3 +156,77 @@ def load_dataset(filepath: str) -> list[Sample]:
     if ext == ".csv":
         return load_csv(filepath)
     return load_jsonl(filepath)
+
+
+def stream_jsonl(filepath: str) -> "Generator[Sample, None, None]":
+    """Lazily stream samples from a JSONL file without loading all into memory.
+
+    Useful for large datasets where memory efficiency matters.
+
+    Args:
+        filepath: Path to the JSONL file.
+
+    Yields:
+        Sample objects one at a time.
+
+    Raises:
+        FileNotFoundError: If the file does not exist.
+        ValueError: If a line has invalid JSON or missing required fields.
+    """
+    if not os.path.exists(filepath):
+        raise FileNotFoundError(f"Dataset file not found: {filepath}")
+
+    with open(filepath, encoding="utf-8") as f:
+        for line_num, line in enumerate(f, start=1):
+            stripped = line.strip()
+            if not stripped:
+                continue
+
+            try:
+                data = json.loads(stripped)
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"Invalid JSON on line {line_num}: {exc}") from exc
+
+            missing = REQUIRED_FIELDS - set(data.keys())
+            if missing:
+                raise ValueError(f"Missing required field(s) {missing} on line {line_num}")
+
+            yield Sample.from_dict(data)
+
+
+def count_samples(filepath: str) -> int:
+    """Count samples in a dataset file without loading them.
+
+    Args:
+        filepath: Path to the JSONL or CSV file.
+
+    Returns:
+        Number of valid samples.
+
+    Raises:
+        FileNotFoundError: If the file does not exist.
+    """
+    if not os.path.exists(filepath):
+        raise FileNotFoundError(f"Dataset file not found: {filepath}")
+
+    ext = os.path.splitext(filepath)[1].lower()
+    if ext == ".csv":
+        with open(filepath, encoding="utf-8", newline="") as f:
+            reader = csv.DictReader(f)
+            return sum(1 for _ in reader)
+    else:
+        count = 0
+        with open(filepath, encoding="utf-8") as f:
+            for line in f:
+                if line.strip():
+                    count += 1
+        return count
+
+
+__all__ = [
+    "load_jsonl",
+    "load_csv",
+    "load_dataset",
+    "stream_jsonl",
+    "count_samples",
+]

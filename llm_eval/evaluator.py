@@ -50,6 +50,8 @@ class Evaluator:
         parallel: int = 1,
         metric_weights: dict[str, float] | None = None,
         judge_config: JudgeConfig | None = None,
+        use_cache: bool = True,
+        metric_options: dict[str, dict[str, Any]] | None = None,
     ) -> None:
         """Initialize the evaluator.
 
@@ -60,12 +62,42 @@ class Evaluator:
             metric_weights: Optional per-metric weights for overall score.
                             If empty or None, uses equal weights.
             judge_config: Optional judge model configuration to pass to metrics.
+            use_cache: Whether to use judge response caching.
+            metric_options: Per-metric options dict (metric_name -> options dict).
         """
         self.metric_names = metrics
         self.threshold = threshold
         self.parallel = max(1, parallel)
         self.metric_weights = metric_weights or {}
+        self.use_cache = use_cache
+        self.metric_options = metric_options or {}
+
+        # Resolve cache
+        cache = None
+        if use_cache:
+            from llm_eval.cache import JudgeCache
+            try:
+                cache = JudgeCache()
+            except Exception:
+                cache = None  # Gracefully degrade if cache init fails
+
         self._registry = get_default_registry(judge_config=judge_config)
+
+        # Re-register metrics with cache if needed
+        if cache is not None:
+            from llm_eval.metrics import MetricRegistry
+            new_registry = MetricRegistry()
+            for name in self._registry.list_metrics():
+                old_metric = self._registry.get(name)
+                # Create new metric with cache
+                new_metric = type(old_metric)(
+                    judge_config=judge_config,
+                    cache=cache,
+                    use_cache=use_cache,
+                    metric_options=self.metric_options.get(name),
+                )
+                new_registry.register(new_metric)
+            self._registry = new_registry
 
     async def _run_metric(self, metric_name: str, sample: Sample) -> MetricResult:
         """Run a single metric on a sample.

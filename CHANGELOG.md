@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-05-15
+
+### Added
+- **Judge cache integration**: Judge responses are now automatically cached via SQLite (`~/.llm-eval/cache.db`). The `Judge` class accepts `cache` and `use_cache` parameters. The `Evaluator` automatically wires up the cache for all metrics.
+- **API key authentication**: Judge now sends `Authorization: Bearer` headers. Supports explicit `api_key` in config, or falls back to environment variables (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`). Provider auto-detection based on `base_url`.
+- **`llm-eval doctor` command**: Environment diagnostics tool that checks Python version, dependencies, API keys (with masked display), available metrics, and cache statistics.
+- **Streaming dataset loader**: `stream_jsonl()` function for memory-efficient lazy iteration over large JSONL files.
+- **`count_samples()` function**: Count samples in JSONL/CSV files without loading them into memory.
+- **Metric options support**: Metrics accept `metric_options` dict for custom configuration (e.g., custom prompt templates). Config YAML supports `metric_options` per evaluation.
+- **PEP 561 compliance**: Added `py.typed` marker file for type checker support.
+- **`api_key` in JudgeConfig**: Explicit API key field in configuration with environment variable fallback.
+- 491 tests (up from 431).
+
+### Changed
+- `Judge.__init__()` now accepts `cache` and `use_cache` parameters.
+- `Metric.__init__()` now accepts `cache`, `use_cache`, and `metric_options` parameters.
+- `Evaluator.__init__()` now accepts `use_cache` and `metric_options` parameters.
+- `JudgeConfig` now includes `api_key: str | None` field.
+- `dataset.py` exports `stream_jsonl` and `count_samples` in `__all__`.
+
 ## [0.8.0] - 2026-05-14
 
 ### Added

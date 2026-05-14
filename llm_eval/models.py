@@ -113,6 +113,7 @@ class JudgeConfig:
     Attributes:
         model: Model identifier (e.g., 'gpt-4o', 'claude-3-opus').
         base_url: Custom API endpoint URL.
+        api_key: Explicit API key. Falls back to environment variables if None.
         temperature: Sampling temperature.
         max_retries: Maximum retry attempts on failure.
         timeout: Request timeout in seconds.
@@ -120,6 +121,7 @@ class JudgeConfig:
 
     model: str = "gpt-4o"
     base_url: str | None = None
+    api_key: str | None = None
     temperature: float = 0.0
     max_retries: int = 3
     timeout: int = 60
@@ -159,6 +161,7 @@ class EvalConfig:
         judge = JudgeConfig(
             model=judge_data.get("model", "gpt-4o"),
             base_url=judge_data.get("base_url"),
+            api_key=judge_data.get("api_key"),
             temperature=judge_data.get("temperature", 0.0),
             max_retries=judge_data.get("max_retries", 3),
             timeout=judge_data.get("timeout", 60),
