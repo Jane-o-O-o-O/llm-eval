@@ -97,7 +97,7 @@ class TestMetricsVerbose:
 
     def test_verbose_flag(self) -> None:
         runner = CliRunner()
-        result = runner.invoke(main, ["metrics", "--verbose"])
+        result = runner.invoke(main, ["metrics", "list", "--verbose"])
         assert result.exit_code == 0
         # Verbose shows descriptions on separate lines
         assert "faithfulness" in result.output

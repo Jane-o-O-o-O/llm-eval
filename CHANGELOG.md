@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-05-14
+
+### Added
+- **JUnit XML report format**: `--output junit` generates JUnit XML reports for CI/CD integration (GitHub Actions, Jenkins, GitLab CI). Each metric becomes a `<testsuite>`, each sample a `<testcase>`. Samples below threshold produce `<failure>` elements.
+- **`--model` / `-m` CLI option**: Override the judge model directly from the command line without editing config files (e.g. `llm-eval run -c config.yaml -m claude-3-opus`).
+- **Score distribution statistics**: Summary now includes median, 25th/75th percentiles (p25/p75), standard deviation, min and max scores for richer quality insights.
+- **`llm-eval history trend` command**: Visualize score trends across evaluation runs with an ASCII sparkline chart and chronological run table.
+- **Config file inheritance (`extends`)**: Configs can now extend base configs with `extends: base.yaml`. Child values override base values. Dicts are deep-merged recursively.
+- **`llm-eval dataset convert` command**: Convert datasets between JSONL and CSV formats. Format is auto-detected from file extension.
+- **`llm-eval metrics create` command**: Scaffold custom metric template files with a Metric subclass skeleton, ready to fill in with custom evaluation logic.
+- 431 tests (up from 401).
+
 ## [0.7.0] - 2026-05-14
 
 ### Added

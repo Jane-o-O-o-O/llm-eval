@@ -9,6 +9,27 @@ from llm_eval.metrics import MetricResult, get_default_registry
 from llm_eval.models import EvalResult, JudgeConfig, Sample
 
 
+def _percentile(sorted_data: list[float], pct: float) -> float:
+    """Calculate percentile from pre-sorted data using linear interpolation.
+
+    Args:
+        sorted_data: Pre-sorted list of values.
+        pct: Percentile to calculate (0-100).
+
+    Returns:
+        The percentile value.
+    """
+    if not sorted_data:
+        return 0.0
+    if len(sorted_data) == 1:
+        return sorted_data[0]
+    k = (len(sorted_data) - 1) * pct / 100.0
+    f = int(k)
+    c = min(f + 1, len(sorted_data) - 1)
+    d = k - f
+    return sorted_data[f] + d * (sorted_data[c] - sorted_data[f])
+
+
 class Evaluator:
     """Core evaluation engine that runs samples through selected metrics.
 
@@ -123,6 +144,7 @@ class Evaluator:
 
         Uses metric_weights (if configured) for computing the weighted overall score.
         Falls back to equal weights when no weights are specified.
+        Includes distribution statistics: median, p25, p75, std_dev, min, max.
 
         Args:
             results: List of evaluation results.
@@ -138,6 +160,12 @@ class Evaluator:
                 "fail_count": 0,
                 "pass_rate": 0.0,
                 "metric_scores": {},
+                "median": 0.0,
+                "p25": 0.0,
+                "p75": 0.0,
+                "std_dev": 0.0,
+                "min_score": 0.0,
+                "max_score": 0.0,
             }
 
         # Per-metric averages
@@ -170,6 +198,16 @@ class Evaluator:
         pass_count = sum(1 for r in results if r.overall_score >= self.threshold)
         fail_count = len(results) - pass_count
 
+        # Distribution statistics
+        all_scores = sorted(r.overall_score for r in results)
+        n = len(all_scores)
+        median = _percentile(all_scores, 50)
+        p25 = _percentile(all_scores, 25)
+        p75 = _percentile(all_scores, 75)
+        mean = sum(all_scores) / n
+        variance = sum((s - mean) ** 2 for s in all_scores) / n
+        std_dev = variance ** 0.5
+
         return {
             "total_samples": len(results),
             "overall_score": round(overall_score, 4),
@@ -178,4 +216,10 @@ class Evaluator:
             "pass_rate": round(pass_count / len(results), 4),
             "threshold": self.threshold,
             "metric_scores": metric_scores,
+            "median": round(median, 4),
+            "p25": round(p25, 4),
+            "p75": round(p75, 4),
+            "std_dev": round(std_dev, 4),
+            "min_score": round(all_scores[0], 4),
+            "max_score": round(all_scores[-1], 4),
         }

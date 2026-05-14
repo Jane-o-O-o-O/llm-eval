@@ -187,6 +187,88 @@ def format_csv_report(
     return output.getvalue()
 
 
+def format_junit_report(
+    results: list[EvalResult],
+    summary: dict[str, Any],
+    metadata: dict[str, Any] | None = None,
+) -> str:
+    """Format evaluation results as JUnit XML for CI/CD integration.
+
+    Generates a valid JUnit XML document where each metric is a <testsuite>
+    and each sample is a <testcase>. Samples below the threshold produce
+    <failure> elements.
+
+    Args:
+        results: List of evaluation results.
+        summary: Summary statistics dictionary.
+        metadata: Optional report metadata (included as <properties>).
+
+    Returns:
+        JUnit XML string.
+    """
+    import xml.etree.ElementTree as ET
+
+    threshold = summary.get("threshold", 0.7)
+    metric_scores = summary.get("metric_scores", {})
+    total = summary.get("total_samples", 0)
+    fail_count = summary.get("fail_count", 0)
+
+    root = ET.Element("testsuites")
+    root.set("name", "llm-eval")
+    root.set("tests", str(total))
+    root.set("failures", str(fail_count))
+
+    # Add metadata as properties in a dedicated suite
+    if metadata:
+        meta_suite = ET.SubElement(root, "testsuite")
+        meta_suite.set("name", "metadata")
+        meta_suite.set("tests", "0")
+        props = ET.SubElement(meta_suite, "properties")
+        for key, value in metadata.items():
+            prop = ET.SubElement(props, "property")
+            prop.set("name", key)
+            prop.set("value", str(value))
+
+    # One testsuite per metric
+    for metric_name, scores in metric_scores.items():
+        suite = ET.SubElement(root, "testsuite")
+        suite.set("name", metric_name)
+        suite.set("tests", str(total))
+        suite.set("errors", "0")
+
+        metric_failures = 0
+        for r in results:
+            tc = ET.SubElement(suite, "testcase")
+            tc.set("name", f"sample_{r.sample_index}")
+            tc.set("classname", f"llm_eval.{metric_name}")
+
+            # Find the score for this metric
+            score = 0.0
+            for m in r.metrics:
+                if m.name == metric_name:
+                    score = m.score
+                    break
+
+            tc.set("time", f"{score:.4f}")
+
+            if score < threshold:
+                metric_failures += 1
+                failure = ET.SubElement(tc, "failure")
+                failure.set("message", f"Score {score:.4f} < threshold {threshold}")
+                failure.set("type", "threshold")
+                failure.text = (
+                    f"Metric '{metric_name}' score {score:.4f} "
+                    f"below threshold {threshold}"
+                )
+
+        suite.set("failures", str(metric_failures))
+
+    # Serialize with XML declaration
+    ET.indent(root, space="  ")
+    xml_bytes = ET.tostring(root, encoding="unicode", xml_declaration=False)
+    return '<?xml version="1.0" encoding="UTF-8"?>\n' + xml_bytes
+
+
 def format_html_report(
     results: list[EvalResult],
     summary: dict[str, Any],

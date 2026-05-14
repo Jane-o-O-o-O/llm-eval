@@ -26,7 +26,7 @@ Building LLM-powered apps is easy. **Knowing if they work well is hard.**
 | 🚀 **Fast Setup** | Install in seconds, evaluate in minutes |
 | 🎯 **LLM-as-Judge** | Use GPT-4, Claude, Gemini, or any OpenAI-compatible model as evaluator |
 | 📊 **10 Built-in Metrics** | Faithfulness, answer relevancy, correctness, coherence, context precision/recall, format compliance, toxicity, hallucination, answer similarity |
-| 📄 **Rich Reports** | JSON, CSV, HTML, and terminal summary output |
+| 📄 **Rich Reports** | JSON, CSV, HTML, JUnit XML, and terminal summary output |
 | ⚡ **Parallel Evaluation** | Concurrent sample evaluation with progress bars |
 | 📉 **Regression Detection** | Compare against baselines to catch quality drops |
 | 🔌 **Pluggable** | Custom metrics, CI/CD integration |
@@ -41,6 +41,9 @@ Building LLM-powered apps is easy. **Knowing if they work well is hard.**
 | 📂 **Dataset Tools** | `llm-eval dataset info|validate|sample` to inspect datasets |
 | 📝 **Markdown Reports** | `--output markdown` for GitHub PR comments |
 | 🏷️ **Run History** | Automatic run tracking with `--tag` and `llm-eval history` |
+| 🔧 **Config Inheritance** | `extends: base.yaml` for DRY configuration |
+| 📊 **Score Distribution** | Median, p25/p75, std dev in evaluation summaries |
+| 📈 **History Trends** | `llm-eval history trend` with ASCII sparkline charts |
 
 ---
 
