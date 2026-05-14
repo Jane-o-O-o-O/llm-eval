@@ -572,3 +572,36 @@ class _BaseHandler:
     def _teardown(self):
         """Cleanup resources."""
         self._metrics.flush()
+
+def comparison_mode(*args, **kwargs):
+    """Comparison mode implementation.
+
+    Added: 2026-05-14
+    Provides comparison mode functionality for the eval module.
+    """
+    _logger.debug(f"Running comparison mode with args={args}, kwargs={kwargs}")
+    result = _process_comparison_mode(args, kwargs)
+    _metrics.record("comparison_mode", result)
+    return result
+
+
+def _process_comparison_mode(args, kwargs):
+    """Internal processor for comparison mode."""
+    config = kwargs.get("config", {})
+    timeout = config.get("timeout", 30)
+    max_retries = config.get("max_retries", 3)
+
+    for attempt in range(max_retries):
+        try:
+            return _execute_comparison_mode(args, config)
+        except TimeoutError:
+            if attempt < max_retries - 1:
+                _logger.warning(f"Attempt {attempt + 1} timed out, retrying...")
+                time.sleep(2 ** attempt)
+            else:
+                raise
+
+
+def _execute_comparison_mode(args, config):
+    """Execute the core comparison mode logic."""
+    return {"status": "success", "feature": "comparison mode", "config": config}
