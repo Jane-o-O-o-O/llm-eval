@@ -39,12 +39,14 @@ class EvalOutput:
         summary: Summary statistics dict.
         terminal: Pre-formatted terminal report string.
         json: Pre-formatted JSON report string.
+        metadata: Report metadata (timestamp, version, etc.).
     """
 
     results: list[Any] = field(default_factory=list)
     summary: dict[str, Any] = field(default_factory=dict)
     terminal: str = ""
     json: str = ""
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     @property
     def overall_score(self) -> float:
@@ -73,6 +75,7 @@ async def evaluate(
     metric_weights: dict[str, float] | None = None,
     temperature: float = 0.0,
     timeout: int = 60,
+    metric_options: dict[str, dict[str, Any]] | None = None,
 ) -> EvalOutput:
     """Evaluate samples programmatically.
 
@@ -87,10 +90,13 @@ async def evaluate(
         metric_weights: Optional per-metric weights.
         temperature: Judge temperature.
         timeout: HTTP request timeout in seconds.
+        metric_options: Per-metric options dict (metric_name -> options dict).
 
     Returns:
         EvalOutput with results, summary, and formatted reports.
     """
+    from llm_eval.report import get_report_metadata
+
     parsed = [Sample.from_dict(s) for s in samples]
     judge_config = JudgeConfig(
         model=model,
@@ -105,14 +111,17 @@ async def evaluate(
         parallel=parallel,
         metric_weights=metric_weights,
         judge_config=judge_config,
+        metric_options=metric_options,
     )
     results = await evaluator.evaluate(parsed)
     summary = evaluator.summarize(results)
+    metadata = get_report_metadata()
     return EvalOutput(
         results=results,
         summary=summary,
-        terminal=format_terminal_report(results, summary),
-        json=format_json_report(results, summary),
+        terminal=format_terminal_report(results, summary, metadata),
+        json=format_json_report(results, summary, metadata),
+        metadata=metadata,
     )
 
 
@@ -167,11 +176,14 @@ async def evaluate_file(
     )
     results = await evaluator.evaluate(samples)
     summary = evaluator.summarize(results)
+    from llm_eval.report import get_report_metadata
+    metadata = get_report_metadata()
     return EvalOutput(
         results=results,
         summary=summary,
-        terminal=format_terminal_report(results, summary),
-        json=format_json_report(results, summary),
+        terminal=format_terminal_report(results, summary, metadata),
+        json=format_json_report(results, summary, metadata),
+        metadata=metadata,
     )
 
 
@@ -189,6 +201,7 @@ def evaluate_sync(
     metric_weights: dict[str, float] | None = None,
     temperature: float = 0.0,
     timeout: int = 60,
+    metric_options: dict[str, dict[str, Any]] | None = None,
 ) -> EvalOutput:
     """Synchronous wrapper around :func:`evaluate`.
 
@@ -205,6 +218,7 @@ def evaluate_sync(
         metric_weights: Per-metric weights.
         temperature: Judge temperature.
         timeout: HTTP timeout.
+        metric_options: Per-metric options dict.
 
     Returns:
         EvalOutput with results, summary, and formatted reports.
@@ -222,6 +236,7 @@ def evaluate_sync(
             metric_weights=metric_weights,
             temperature=temperature,
             timeout=timeout,
+            metric_options=metric_options,
         )
     )
 
