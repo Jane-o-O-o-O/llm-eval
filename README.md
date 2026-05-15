@@ -50,6 +50,10 @@ Building LLM-powered apps is easy. **Knowing if they work well is hard.**
 | ⏱️ **Timeout Override** | `--timeout 120` to override judge timeout per run |
 | 📋 **Config Schema** | `llm-eval config schema` for editor autocompletion |
 | 🔄 **Sync SDK** | `evaluate_sync()` for non-async Python contexts |
+| 📊 **Per-Metric Stats** | Median, p25/p75, std dev for every metric |
+| ⚙️ **CLI Overrides** | `--set judge.model=claude-3-opus` without editing YAML |
+| 🔍 **Metric-Aware Validation** | `dataset validate --metrics` checks field requirements |
+| 📊 **History Diff** | `history diff` to compare two specific runs |
 
 ---
 

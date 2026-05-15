@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-05-15
+
+### Added
+- **Per-metric distribution statistics**: Each metric in the summary now includes `median`, `p25`, `p75`, and `std_dev` alongside the existing `mean`, `min`, `max`. Previously only overall scores had distribution stats.
+- **`--set key=value` CLI overrides**: Override any config value from the command line without editing YAML. Supports dot notation (e.g. `--set judge.model=claude-3-opus --set defaults.threshold=0.9`). Can be repeated for multiple overrides. Value types (int, float, bool, str) are auto-coerced.
+- **`dataset validate --metrics` flag**: Check dataset field requirements for specific metrics. Warns when fields like `reference` or `context` are missing for metrics that need them (e.g. `answer_similarity`, `faithfulness`).
+- **Custom metric validation in `validate` command**: `llm-eval validate` now actually imports and instantiates custom metrics, reporting clear errors for missing modules/classes or non-Metric types.
+- **`history diff` command**: `llm-eval history diff <run_a> <run_b>` compares two history runs directly. Supports `--output json` for machine-readable output.
+- **SDK `metric_options` parameter**: `evaluate()` and `evaluate_sync()` now accept `metric_options` dict for per-metric custom configuration.
+- **SDK `metadata` in EvalOutput**: `EvalOutput` now includes a `metadata` dict with timestamp, version, python version, and platform info.
+- 561 tests (up from 520).
+
+### Changed
+- `EvalOutput` dataclass now has a `metadata: dict[str, Any]` field.
+- `Evaluator.summarize()` per-metric scores now include `median`, `p25`, `p75`, `std_dev` keys.
+- `llm-eval run --fail-on regression` without `--baseline` now fails early with a clear error message instead of proceeding to evaluation and then failing.
+
 ## [1.0.0] - 2026-05-15
 
 ### Added
