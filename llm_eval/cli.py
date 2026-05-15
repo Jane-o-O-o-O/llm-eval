@@ -464,6 +464,11 @@ def run(
         config.judge.timeout = timeout
     fmt = output_format or config.output_format
 
+    # Early validation: regression mode requires baseline
+    if fail_on == "regression" and not baseline_path:
+        click.echo("❌ --fail-on regression requires --baseline <path> to compare against.", err=True)
+        sys.exit(1)
+
     # Build report metadata
     metadata = get_report_metadata(config_path=config_path)
 
