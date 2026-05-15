@@ -200,7 +200,7 @@ class Evaluator:
                 "max_score": 0.0,
             }
 
-        # Per-metric averages
+        # Per-metric averages + distribution stats
         metric_scores: dict[str, dict[str, float]] = {}
         for metric_name in self.metric_names:
             scores = []
@@ -209,10 +209,18 @@ class Evaluator:
                     if m.name == metric_name:
                         scores.append(m.score)
             if scores:
+                sorted_scores = sorted(scores)
+                n = len(sorted_scores)
+                mean = sum(sorted_scores) / n
+                variance = sum((s - mean) ** 2 for s in sorted_scores) / n
                 metric_scores[metric_name] = {
-                    "mean": sum(scores) / len(scores),
-                    "min": min(scores),
-                    "max": max(scores),
+                    "mean": round(mean, 4),
+                    "min": min(sorted_scores),
+                    "max": max(sorted_scores),
+                    "median": round(_percentile(sorted_scores, 50), 4),
+                    "p25": round(_percentile(sorted_scores, 25), 4),
+                    "p75": round(_percentile(sorted_scores, 75), 4),
+                    "std_dev": round(variance ** 0.5, 4),
                 }
 
         # Weighted overall score
