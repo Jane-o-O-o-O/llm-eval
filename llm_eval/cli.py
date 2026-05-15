@@ -1307,6 +1307,32 @@ def history_trend(tag: str | None, limit: int, history_dir: str | None) -> None:
         click.echo(f"{i:<4} {ts:<22} {tag_str:<15} {r['overall_score']:<10.4f} {r['total_samples']}")
 
 
+@history.command("diff")
+@click.argument("run_a", type=click.Path(exists=True))
+@click.argument("run_b", type=click.Path(exists=True))
+@click.option("--label-a", default="Run A", help="Label for the first run.")
+@click.option("--label-b", default="Run B", help="Label for the second run.")
+@click.option("-o", "--output", "output_format", default="terminal", help="Output format: terminal, json.")
+def history_diff(
+    run_a: str, run_b: str, label_a: str, label_b: str, output_format: str
+) -> None:
+    """Compare two evaluation runs from history.
+
+    Provide file paths to two history run JSON files.
+    """
+    data_a = load_run(run_a)
+    data_b = load_run(run_b)
+
+    comparison = compare_reports(
+        data_a, data_b, label_a=label_a, label_b=label_b, path_a=run_a, path_b=run_b,
+    )
+
+    if output_format == "json":
+        click.echo(json.dumps(comparison, indent=2, ensure_ascii=False))
+    else:
+        click.echo(format_terminal_comparison(comparison))
+
+
 def _format_report(fmt: str, results, summary, metadata: dict | None = None) -> str:
     """Format the report based on the specified format."""
     metadata = metadata or {}
