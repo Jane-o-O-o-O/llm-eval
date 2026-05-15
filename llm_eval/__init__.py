@@ -1,7 +1,7 @@
 """llm-eval: Lightweight CLI for evaluating LLM applications."""
 
 from llm_eval.models import EvalConfig, EvalResult, JudgeConfig, MetricResult, Sample
-from llm_eval.sdk import EvalOutput, evaluate, evaluate_file
+from llm_eval.sdk import EvalOutput, evaluate, evaluate_file, evaluate_file_sync, evaluate_sync
 
 __all__ = [
     "Sample",
@@ -11,6 +11,8 @@ __all__ = [
     "JudgeConfig",
     "evaluate",
     "evaluate_file",
+    "evaluate_sync",
+    "evaluate_file_sync",
     "EvalOutput",
 ]
-__version__ = "0.9.0"
+__version__ = "1.0.0"

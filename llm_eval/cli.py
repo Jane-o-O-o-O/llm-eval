@@ -41,6 +41,51 @@ def _echo(msg: str, quiet: bool = False) -> None:
         click.echo(msg)
 
 
+def _apply_filter(
+    samples: list, filter_expr: str, quiet: bool = False
+) -> list:
+    """Filter samples by a metadata field expression.
+
+    Supports expressions like ``metadata.category=tech`` which keeps only
+    samples whose ``metadata["category"]`` equals ``"tech"``.
+
+    Args:
+        samples: List of Sample objects.
+        filter_expr: Filter expression in ``field=value`` format.
+        quiet: Suppress informational output.
+
+    Returns:
+        Filtered list of samples.
+
+    Raises:
+        click.BadParameter: If the expression format is invalid.
+    """
+    if "=" not in filter_expr:
+        raise click.BadParameter(
+            f"Invalid filter format: '{filter_expr}'. Use field=value (e.g. metadata.category=tech)."
+        )
+
+    field_path, _, value = filter_expr.partition("=")
+    parts = field_path.split(".")
+
+    filtered = []
+    for sample in samples:
+        obj: Any = sample
+        for part in parts:
+            if hasattr(obj, part):
+                obj = getattr(obj, part)
+            elif isinstance(obj, dict) and part in obj:
+                obj = obj[part]
+            else:
+                obj = None
+                break
+        if str(obj) == value:
+            filtered.append(sample)
+
+    _echo(f"   🔍 Filtered: {len(filtered)}/{len(samples)} samples match '{filter_expr}'", quiet)
+    return filtered
+
+
 def _resolve_extends(raw_config: dict, config_dir: str) -> dict:
     """Resolve config file extends/inheritance.
 
@@ -305,6 +350,18 @@ def init(output: str, preset: str | None) -> None:
     default=True,
     help="Save run to history (default: on).",
 )
+@click.option(
+    "--filter",
+    "filter_expr",
+    default=None,
+    help="Filter samples by metadata field (e.g. metadata.category=tech).",
+)
+@click.option(
+    "--timeout",
+    type=int,
+    default=None,
+    help="Override judge timeout in seconds for this run.",
+)
 def run(
     config_path: str,
     output_format: str | None,
@@ -322,6 +379,8 @@ def run(
     tag: str | None,
     no_cache: bool,
     save_history: bool,
+    filter_expr: str | None,
+    timeout: int | None,
 ) -> None:
     """Run evaluations based on a config file."""
     # Load config
@@ -341,6 +400,8 @@ def run(
         config.threshold = threshold
     if model is not None:
         config.judge.model = model
+    if timeout is not None:
+        config.judge.timeout = timeout
     fmt = output_format or config.output_format
 
     # Build report metadata
@@ -348,11 +409,21 @@ def run(
 
     # Dry-run mode: validate and print plan
     if dry_run:
+        # Validate filter expression early
+        if filter_expr and "=" not in filter_expr:
+            click.echo(f"❌ Invalid filter format: '{filter_expr}'. Use field=value (e.g. metadata.category=tech)", err=True)
+            sys.exit(1)
+
         click.echo("🔍 DRY RUN — Validation Report")
         click.echo("=" * 50)
         click.echo(f"   Judge model: {config.judge.model}")
         click.echo(f"   Threshold: {config.threshold}")
         click.echo(f"   Output format: {fmt}")
+        click.echo(f"   Timeout: {config.judge.timeout}s")
+        if timeout is not None:
+            click.echo(f"   ⏱️  Timeout overridden via CLI: {timeout}s")
+        if filter_expr:
+            click.echo(f"   🔍 Filter: {filter_expr}")
         if config.metric_weights:
             click.echo(f"   Metric weights: {config.metric_weights}")
         click.echo(f"\n   Evaluations ({len(config.evaluations)}):")
@@ -382,6 +453,8 @@ def run(
             if os.path.exists(ds_path):
                 try:
                     samples = load_dataset(ds_path)
+                    if filter_expr:
+                        samples = _apply_filter(samples, filter_expr, quiet)
                     click.echo(f"      ✅ Dataset: {len(samples)} samples")
                 except ValueError as exc:
                     click.echo(f"      ❌ Dataset error: {exc}")
@@ -422,6 +495,10 @@ def run(
         except (FileNotFoundError, ValueError) as exc:
             click.echo(f"❌ Dataset error: {exc}", err=True)
             sys.exit(1)
+
+        # Apply filter
+        if filter_expr:
+            samples = _apply_filter(samples, filter_expr, quiet)
 
         # Sample subset for quick testing
         if sample is not None and sample < len(samples):
@@ -1116,3 +1193,317 @@ def _format_report(fmt: str, results, summary, metadata: dict | None = None) -> 
 
 if __name__ == "__main__":
     main()
+
+
+# ─── Cache management commands ───────────────────────────────────────────
+
+
+@main.group("cache", invoke_without_command=True)
+@click.pass_context
+def cache_group(ctx: click.Context) -> None:
+    """Manage the judge response cache."""
+    if ctx.invoked_subcommand is None:
+        ctx.invoke(cache_stats)
+
+
+@cache_group.command("stats")
+@click.option(
+    "--output", "-o", "output_format", default="terminal",
+    help="Output format: terminal or json.",
+)
+def cache_stats(output_format: str) -> None:
+    """Show cache statistics (entry count, size, path)."""
+    from llm_eval.cache import JudgeCache
+
+    try:
+        cache = JudgeCache()
+        stats = cache.stats()
+        cache.close()
+    except Exception as exc:
+        click.echo(f"❌ Cache error: {exc}", err=True)
+        sys.exit(1)
+
+    if output_format == "json":
+        click.echo(json.dumps(stats, indent=2))
+    else:
+        size_kb = stats["db_size_bytes"] / 1024
+        click.echo("💾 Cache Statistics\n")
+        click.echo(f"   Entries:  {stats['entry_count']}")
+        click.echo(f"   Size:     {size_kb:.1f} KB")
+        click.echo(f"   Path:     {stats['db_path']}")
+
+
+@cache_group.command("clear")
+@click.option("--yes", "-y", is_flag=True, default=False, help="Skip confirmation prompt.")
+def cache_clear(yes: bool) -> None:
+    """Remove all cached judge responses."""
+    from llm_eval.cache import JudgeCache
+
+    if not yes:
+        click.confirm("⚠️  This will remove all cached responses. Continue?", abort=True)
+
+    try:
+        cache = JudgeCache()
+        removed = cache.clear()
+        cache.close()
+    except Exception as exc:
+        click.echo(f"❌ Cache error: {exc}", err=True)
+        sys.exit(1)
+
+    click.echo(f"✅ Removed {removed} cached entries.")
+
+
+@cache_group.command("purge")
+@click.option("--older-than", type=int, required=True, help="Remove entries older than N days.")
+@click.option("--yes", "-y", is_flag=True, default=False, help="Skip confirmation prompt.")
+def cache_purge(older_than: int, yes: bool) -> None:
+    """Remove cached entries older than N days."""
+    from llm_eval.cache import JudgeCache
+
+    if not yes:
+        click.confirm(
+            f"⚠️  This will remove cache entries older than {older_than} days. Continue?",
+            abort=True,
+        )
+
+    try:
+        cache = JudgeCache()
+        # Purge by deleting entries older than N days
+        import sqlite3 as _sqlite3
+        conn = cache._conn
+        count_before = conn.execute("SELECT COUNT(*) FROM judge_cache").fetchone()[0]
+        conn.execute(
+            "DELETE FROM judge_cache WHERE created_at < datetime('now', ?)",
+            (f"-{older_than} days",),
+        )
+        conn.commit()
+        count_after = conn.execute("SELECT COUNT(*) FROM judge_cache").fetchone()[0]
+        removed = count_before - count_after
+        cache.close()
+    except Exception as exc:
+        click.echo(f"❌ Cache error: {exc}", err=True)
+        sys.exit(1)
+
+    click.echo(f"✅ Purged {removed} entries older than {older_than} days.")
+
+
+# ─── Export command ──────────────────────────────────────────────────────
+
+
+_FORMAT_EXTENSIONS = {
+    ".json": "json",
+    ".html": "html",
+    ".htm": "html",
+    ".csv": "csv",
+    ".xml": "junit",
+    ".md": "markdown",
+}
+
+
+@main.command()
+@click.argument("input_path", type=click.Path(exists=True))
+@click.option("--to", "to_format", default=None, help="Target format: json, html, csv, markdown, junit, terminal.")
+@click.option("--output", "-o", "output_path", default=None, help="Output file path (stdout if omitted).")
+def export(input_path: str, to_format: str | None, output_path: str | None) -> None:
+    """Convert a JSON evaluation report to another format.
+
+    Example: llm-eval export report.json --to html -o report.html
+    """
+    # Load JSON report
+    with open(input_path, encoding="utf-8") as f:
+        data = json.load(f)
+
+    results_data = data.get("results", [])
+    summary = data.get("summary", {})
+    metadata = data.get("metadata", {})
+
+    # Reconstruct EvalResult objects
+    from llm_eval.models import EvalResult, MetricResult
+    results: list[EvalResult] = []
+    for r in results_data:
+        metrics = [
+            MetricResult(name=m["name"], score=m["score"], details=m.get("details", {}))
+            for m in r.get("metrics", [])
+        ]
+        results.append(EvalResult(sample_index=r["sample_index"], metrics=metrics))
+
+    # Auto-detect format from output extension
+    if to_format is None:
+        if output_path:
+            ext = os.path.splitext(output_path)[1].lower()
+            to_format = _FORMAT_EXTENSIONS.get(ext, "terminal")
+        else:
+            to_format = "terminal"
+
+    content = _format_report(to_format, results, summary, metadata)
+
+    if output_path:
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write(content)
+        click.echo(f"✅ Exported to {output_path} ({to_format})")
+    else:
+        click.echo(content)
+
+
+# ─── Config subgroup ─────────────────────────────────────────────────────
+
+
+@main.group("config", invoke_without_command=True)
+@click.pass_context
+def config_group(ctx: click.Context) -> None:
+    """Configuration utilities (schema generation, etc.)."""
+    if ctx.invoked_subcommand is None:
+        click.echo("Use: llm-eval config schema")
+
+
+@config_group.command("schema")
+@click.option("--output", "-o", "output_path", default=None, help="Write schema to file.")
+def config_schema(output_path: str | None) -> None:
+    """Export JSON Schema for the evaluation config YAML.
+
+    Useful for editor autocompletion and validation.
+    """
+    schema = {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "title": "llm-eval Configuration",
+        "description": "Configuration schema for llm-eval evaluation tool.",
+        "type": "object",
+        "properties": {
+            "extends": {
+                "type": "string",
+                "description": "Path to a base config file to inherit from.",
+            },
+            "judge": {
+                "type": "object",
+                "description": "LLM judge model configuration.",
+                "properties": {
+                    "model": {
+                        "type": "string",
+                        "default": "gpt-4o",
+                        "description": "Judge model identifier.",
+                    },
+                    "base_url": {
+                        "type": ["string", "null"],
+                        "description": "Custom API endpoint URL.",
+                    },
+                    "api_key": {
+                        "type": ["string", "null"],
+                        "description": "Explicit API key (falls back to env vars).",
+                    },
+                    "temperature": {
+                        "type": "number",
+                        "default": 0.0,
+                        "minimum": 0,
+                        "maximum": 2,
+                        "description": "Sampling temperature.",
+                    },
+                    "max_retries": {
+                        "type": "integer",
+                        "default": 3,
+                        "minimum": 1,
+                        "description": "Maximum retry attempts on failure.",
+                    },
+                    "timeout": {
+                        "type": "integer",
+                        "default": 60,
+                        "minimum": 1,
+                        "description": "Request timeout in seconds.",
+                    },
+                },
+                "required": ["model"],
+            },
+            "defaults": {
+                "type": "object",
+                "description": "Default evaluation settings.",
+                "properties": {
+                    "threshold": {
+                        "type": "number",
+                        "default": 0.7,
+                        "minimum": 0,
+                        "maximum": 1,
+                        "description": "Pass/fail score threshold.",
+                    },
+                    "parallel": {
+                        "type": "integer",
+                        "default": 1,
+                        "minimum": 1,
+                        "description": "Number of parallel evaluations.",
+                    },
+                    "output_format": {
+                        "type": "string",
+                        "default": "terminal",
+                        "enum": ["terminal", "json", "csv", "html", "markdown", "junit"],
+                        "description": "Report output format.",
+                    },
+                    "metric_weights": {
+                        "type": "object",
+                        "description": "Per-metric weights for overall score.",
+                        "additionalProperties": {"type": "number"},
+                    },
+                },
+            },
+            "evaluations": {
+                "type": "array",
+                "description": "List of evaluation definitions.",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "name": {
+                            "type": "string",
+                            "description": "Evaluation run name.",
+                        },
+                        "dataset": {
+                            "type": "string",
+                            "description": "Path to JSONL or CSV dataset file.",
+                        },
+                        "metrics": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "List of metric names to evaluate.",
+                        },
+                        "threshold": {
+                            "type": ["number", "null"],
+                            "minimum": 0,
+                            "maximum": 1,
+                            "description": "Per-evaluation threshold override.",
+                        },
+                        "parallel": {
+                            "type": ["integer", "null"],
+                            "minimum": 1,
+                            "description": "Per-evaluation parallelism override.",
+                        },
+                        "metric_weights": {
+                            "type": "object",
+                            "additionalProperties": {"type": "number"},
+                        },
+                        "metric_options": {
+                            "type": "object",
+                            "description": "Per-metric custom options.",
+                        },
+                    },
+                    "required": ["name", "dataset", "metrics"],
+                },
+            },
+            "custom_metrics": {
+                "type": "array",
+                "description": "Custom metric plugin definitions.",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "module": {"type": "string"},
+                        "class": {"type": "string"},
+                    },
+                    "required": ["module", "class"],
+                },
+            },
+        },
+        "required": ["evaluations"],
+    }
+
+    content = json.dumps(schema, indent=2, ensure_ascii=False)
+    if output_path:
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write(content)
+        click.echo(f"✅ Schema written to: {output_path}")
+    else:
+        click.echo(content)

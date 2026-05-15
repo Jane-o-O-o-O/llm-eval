@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2026-05-15
+
+### Added
+- **`llm-eval cache stats|clear|purge` commands**: Full cache management from the CLI. View entry count and size (`stats`), clear all entries (`clear --yes`), or remove entries older than N days (`purge --older-than 30 --yes`).
+- **`llm-eval export` command**: Convert JSON evaluation reports to other formats (HTML, CSV, Markdown, JUnit XML, terminal). Supports `--to` format selection and auto-detection from output file extension.
+- **`--filter` option on `run`**: Filter dataset samples by metadata field values (e.g. `--filter metadata.category=tech`). Works in both dry-run and live evaluation modes.
+- **`--timeout` option on `run`**: Override judge timeout per evaluation run without editing config files.
+- **`llm-eval config schema` command**: Export JSON Schema for the evaluation config YAML format. Useful for editor autocompletion and validation. Supports `--output` to write to file.
+- **Sync SDK wrappers**: `evaluate_sync()` and `evaluate_file_sync()` convenience functions for non-async contexts. Internally wrap the async versions with `asyncio.run()`.
+- 520 tests (up from 491).
+
+### Changed
+- `__init__.py` now exports `evaluate_sync` and `evaluate_file_sync` from the top-level package.
+- CLI help now shows `cache`, `export`, and `config` commands.
+
 ## [0.9.0] - 2026-05-15
 
 ### Added

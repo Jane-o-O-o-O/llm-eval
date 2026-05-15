@@ -44,6 +44,12 @@ Building LLM-powered apps is easy. **Knowing if they work well is hard.**
 | 🔧 **Config Inheritance** | `extends: base.yaml` for DRY configuration |
 | 📊 **Score Distribution** | Median, p25/p75, std dev in evaluation summaries |
 | 📈 **History Trends** | `llm-eval history trend` with ASCII sparkline charts |
+| 💾 **Cache Management** | `llm-eval cache stats\|clear\|purge` to manage judge cache |
+| 📤 **Report Export** | `llm-eval export` to convert reports between formats |
+| 🔍 **Sample Filtering** | `--filter metadata.category=tech` to evaluate subsets |
+| ⏱️ **Timeout Override** | `--timeout 120` to override judge timeout per run |
+| 📋 **Config Schema** | `llm-eval config schema` for editor autocompletion |
+| 🔄 **Sync SDK** | `evaluate_sync()` for non-async Python contexts |
 
 ---
 

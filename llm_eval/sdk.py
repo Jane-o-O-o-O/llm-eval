@@ -175,4 +175,94 @@ async def evaluate_file(
     )
 
 
-__all__ = ["evaluate", "evaluate_file", "EvalOutput"]
+__all__ = ["evaluate", "evaluate_file", "evaluate_sync", "evaluate_file_sync", "EvalOutput"]
+
+
+def evaluate_sync(
+    samples: list[dict[str, Any]],
+    metrics: list[str],
+    *,
+    model: str = "gpt-4o",
+    base_url: str | None = None,
+    threshold: float = 0.7,
+    parallel: int = 1,
+    metric_weights: dict[str, float] | None = None,
+    temperature: float = 0.0,
+    timeout: int = 60,
+) -> EvalOutput:
+    """Synchronous wrapper around :func:`evaluate`.
+
+    Convenience function for non-async contexts. Internally calls
+    ``asyncio.run(evaluate(...))``.
+
+    Args:
+        samples: List of sample dicts.
+        metrics: Metric names.
+        model: Judge model identifier.
+        base_url: Custom API endpoint.
+        threshold: Pass/fail threshold.
+        parallel: Concurrent evaluations.
+        metric_weights: Per-metric weights.
+        temperature: Judge temperature.
+        timeout: HTTP timeout.
+
+    Returns:
+        EvalOutput with results, summary, and formatted reports.
+    """
+    import asyncio
+
+    return asyncio.run(
+        evaluate(
+            samples=samples,
+            metrics=metrics,
+            model=model,
+            base_url=base_url,
+            threshold=threshold,
+            parallel=parallel,
+            metric_weights=metric_weights,
+            temperature=temperature,
+            timeout=timeout,
+        )
+    )
+
+
+def evaluate_file_sync(
+    path: str,
+    metrics: list[str] | None = None,
+    *,
+    config: str | None = None,
+    model: str = "gpt-4o",
+    base_url: str | None = None,
+    threshold: float = 0.7,
+    parallel: int = 1,
+) -> EvalOutput:
+    """Synchronous wrapper around :func:`evaluate_file`.
+
+    Convenience function for non-async contexts. Internally calls
+    ``asyncio.run(evaluate_file(...))``.
+
+    Args:
+        path: Path to a JSONL or CSV dataset file.
+        metrics: Metric names.
+        config: Optional YAML config file path.
+        model: Judge model.
+        base_url: Custom API endpoint.
+        threshold: Pass/fail threshold.
+        parallel: Concurrent evaluations.
+
+    Returns:
+        EvalOutput with results, summary, and formatted reports.
+    """
+    import asyncio
+
+    return asyncio.run(
+        evaluate_file(
+            path=path,
+            metrics=metrics,
+            config=config,
+            model=model,
+            base_url=base_url,
+            threshold=threshold,
+            parallel=parallel,
+        )
+    )
