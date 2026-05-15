@@ -1036,10 +1036,29 @@ def dataset_info(path: str) -> None:
         click.echo(f"   Context: {len(s.context)} chunk(s)")
 
 
+# Metric requirements: which fields each metric needs
+_METRIC_REQUIREMENTS: dict[str, dict[str, list[str]]] = {
+    "answer_similarity": {"reference": ["reference answer"]},
+    "context_recall": {"reference": ["reference answer"]},
+    "context_precision": {"context": ["retrieved context"]},
+    "faithfulness": {"context": ["retrieved context"]},
+    "hallucination": {"context": ["retrieved context"]},
+}
+
+
 @dataset.command("validate")
 @click.argument("path", type=click.Path(exists=True))
-def dataset_validate(path: str) -> None:
-    """Validate a dataset file for common issues."""
+@click.option(
+    "--metrics",
+    default=None,
+    help="Comma-separated metric names to check field requirements for.",
+)
+def dataset_validate(path: str, metrics: str | None) -> None:
+    """Validate a dataset file for common issues.
+
+    When --metrics is provided, also checks that required fields are present
+    for each metric (e.g. reference for answer_similarity, context for faithfulness).
+    """
     errors: list[str] = []
     warnings: list[str] = []
 
@@ -1048,6 +1067,9 @@ def dataset_validate(path: str) -> None:
     except (FileNotFoundError, ValueError) as exc:
         click.echo(f"❌ Dataset error: {exc}", err=True)
         sys.exit(1)
+
+    # Parse metric list
+    metric_list = [m.strip() for m in metrics.split(",")] if metrics else []
 
     for i, sample in enumerate(samples):
         idx = i + 1
@@ -1059,6 +1081,34 @@ def dataset_validate(path: str) -> None:
             warnings.append(f"Sample #{idx}: No context (ok for non-RAG tasks)")
         if sample.query == sample.answer:
             warnings.append(f"Sample #{idx}: Query identical to answer")
+
+    # Metric-specific field checks
+    if metric_list:
+        missing_fields: dict[str, list[str]] = {}  # field -> sample indices
+        for i, sample in enumerate(samples):
+            idx = i + 1
+            for metric_name in metric_list:
+                reqs = _METRIC_REQUIREMENTS.get(metric_name, {})
+                for field_name, descriptions in reqs.items():
+                    value = getattr(sample, field_name, None)
+                    if not value:
+                        if field_name not in missing_fields:
+                            missing_fields[field_name] = []
+                        if idx not in missing_fields[field_name]:
+                            missing_fields[field_name].append(idx)
+
+        if missing_fields:
+            for field_name, indices in missing_fields.items():
+                desc = _METRIC_REQUIREMENTS.get(field_name, {})
+                needed_by = [
+                    m for m, reqs in _METRIC_REQUIREMENTS.items()
+                    if field_name in reqs and m in metric_list
+                ]
+                warnings.append(
+                    f"Field '{field_name}' missing in {len(indices)} sample(s) "
+                    f"(needed by: {', '.join(needed_by)}). "
+                    f"These metrics will return fallback scores."
+                )
 
     if errors:
         click.echo(f"❌ Validation failed ({len(errors)} error(s)):\n")
