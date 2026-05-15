@@ -138,6 +138,51 @@ def _deep_merge(base: dict, override: dict) -> dict:
     return result
 
 
+def _apply_set_override(raw_config: dict, set_expr: str) -> dict:
+    """Apply a dotted key=value override to a config dict.
+
+    Supports expressions like ``judge.model=claude-3-opus`` or
+    ``defaults.threshold=0.9``. Nested dicts are created as needed.
+
+    Args:
+        raw_config: The config dict to modify (mutated in place).
+        set_expr: Override expression in ``dotted.key=value`` format.
+
+    Returns:
+        The modified config dict (same object).
+
+    Raises:
+        ValueError: If the expression format is invalid.
+    """
+    if "=" not in set_expr:
+        raise ValueError(
+            f"Invalid --set format: '{set_expr}'. Use key=value (e.g. judge.model=gpt-4o)."
+        )
+    key_path, _, value = set_expr.partition("=")
+    parts = key_path.split(".")
+
+    # Coerce value types
+    if value.lower() in ("true", "false"):
+        coerced: Any = value.lower() == "true"
+    else:
+        try:
+            coerced = int(value)
+        except ValueError:
+            try:
+                coerced = float(value)
+            except ValueError:
+                coerced = value
+
+    # Walk and set
+    obj = raw_config
+    for part in parts[:-1]:
+        if part not in obj or not isinstance(obj[part], dict):
+            obj[part] = {}
+        obj = obj[part]
+    obj[parts[-1]] = coerced
+    return raw_config
+
+
 # ─── Config presets ───────────────────────────────────────────────────────
 
 PRESETS: dict[str, dict] = {
@@ -362,6 +407,12 @@ def init(output: str, preset: str | None) -> None:
     default=None,
     help="Override judge timeout in seconds for this run.",
 )
+@click.option(
+    "--set",
+    "set_overrides",
+    multiple=True,
+    help="Override config values (e.g. --set judge.model=claude-3-opus). Can be repeated.",
+)
 def run(
     config_path: str,
     output_format: str | None,
@@ -381,6 +432,7 @@ def run(
     save_history: bool,
     filter_expr: str | None,
     timeout: int | None,
+    set_overrides: tuple[str, ...],
 ) -> None:
     """Run evaluations based on a config file."""
     # Load config
@@ -394,6 +446,14 @@ def run(
     # Resolve extends/inheritance
     config_dir = os.path.dirname(os.path.abspath(config_path))
     raw_config = _resolve_extends(raw_config, config_dir)
+
+    # Apply --set overrides
+    for set_expr in set_overrides:
+        try:
+            _apply_set_override(raw_config, set_expr)
+        except ValueError as exc:
+            click.echo(f"❌ {exc}", err=True)
+            sys.exit(1)
 
     config = EvalConfig.from_dict(raw_config)
     if threshold is not None:
@@ -424,6 +484,8 @@ def run(
             click.echo(f"   ⏱️  Timeout overridden via CLI: {timeout}s")
         if filter_expr:
             click.echo(f"   🔍 Filter: {filter_expr}")
+        if set_overrides:
+            click.echo(f"   ⚙️  --set overrides: {', '.join(set_overrides)}")
         if config.metric_weights:
             click.echo(f"   Metric weights: {config.metric_weights}")
         click.echo(f"\n   Evaluations ({len(config.evaluations)}):")
