@@ -832,6 +832,27 @@ def validate(config_path: str) -> None:
         if f.strip() not in valid_formats:
             errors.append(f"Unknown output format: {f.strip()}")
 
+    # Check custom_metrics
+    custom_metrics = raw_config.get("custom_metrics", [])
+    for i, cm_spec in enumerate(custom_metrics):
+        cm_name = f"Custom metric #{i + 1}"
+        if not cm_spec.get("module"):
+            errors.append(f"{cm_name}: Missing 'module' field")
+        if not cm_spec.get("class"):
+            errors.append(f"{cm_name}: Missing 'class' field")
+
+        # Try to load the custom metric
+        if cm_spec.get("module") and cm_spec.get("class"):
+            try:
+                from llm_eval.plugins import load_custom_metrics
+                load_custom_metrics(get_default_registry(), [cm_spec])
+            except ImportError as exc:
+                errors.append(f"{cm_name} ({cm_spec['module']}.{cm_spec['class']}): Import failed — {exc}")
+            except AttributeError as exc:
+                errors.append(f"{cm_name} ({cm_spec['module']}.{cm_spec['class']}): Class not found — {exc}")
+            except TypeError as exc:
+                errors.append(f"{cm_name}: {exc}")
+
     # Report
     if errors:
         click.echo(f"❌ Validation failed ({len(errors)} error(s)):\n")
