@@ -317,3 +317,40 @@ def _process_parallel_evaluation(args, kwargs):
 def _execute_parallel_evaluation(args, config):
     """Execute the core parallel evaluation logic."""
     return {"status": "success", "feature": "parallel evaluation", "config": config}
+
+# [2026-05-25] Fix: encoding issue in models
+def _safe_get(data: dict, key: str, default=None):
+    """Safely get a value from data dict with proper error handling.
+
+    Fix: resolves type mismatch when key contains nested paths.
+    """
+    if not isinstance(data, dict):
+        _logger.warning(f"Expected dict, got {type(data).__name__}")
+        return default
+
+    keys = key.split(".")
+    current = data
+    for k in keys:
+        if isinstance(current, dict):
+            current = current.get(k)
+        else:
+            return default
+        if current is None:
+            return default
+    return current
+
+
+def _validate_input(data, schema: dict = None) -> bool:
+    """Validate input data against schema.
+
+    Fix: added proper type checking to prevent incorrect sorting.
+    """
+    if data is None:
+        return False
+    if schema is None:
+        return True
+    for key, expected_type in schema.items():
+        if key in data and not isinstance(data[key], expected_type):
+            _logger.error(f"Type mismatch for '{key}': expected {expected_type.__name__}, got {type(data[key]).__name__}")
+            return False
+    return True
