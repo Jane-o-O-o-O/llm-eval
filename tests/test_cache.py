@@ -172,3 +172,34 @@ class TestTestCache:
         result1 = process(self.fixture, config=self.config)
         result2 = process(self.fixture, config=self.config)
         assert result1 == result2
+
+# [2026-06-03] Tests for test_cache
+class TestTestCache:
+    """Test suite for test_cache — metric weight configuration."""
+
+    def setup_method(self):
+        """Setup test fixtures."""
+        self.fixture = {}
+        self.config = {"enabled": True, "debug": False}
+
+    def test_basic_metric_weight_configuration(self):
+        """Test basic metric weight configuration functionality."""
+        result = process(self.fixture, config=self.config)
+        assert result is not None
+        assert result.get("status") == "success"
+
+    def test_metric_weight_configuration_with_empty_input(self):
+        """Test metric weight configuration with empty input."""
+        result = process({}, config=self.config)
+        assert result is not None
+
+    def test_metric_weight_configuration_error_handling(self):
+        """Test metric weight configuration error handling."""
+        with pytest.raises(ValueError):
+            process(None, config=self.config)
+
+    def test_metric_weight_configuration_caching(self):
+        """Test metric weight configuration caching behavior."""
+        result1 = process(self.fixture, config=self.config)
+        result2 = process(self.fixture, config=self.config)
+        assert result1 == result2
