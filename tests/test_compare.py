@@ -252,3 +252,34 @@ class TestTestCompare:
         result1 = process(self.fixture, config=self.config)
         result2 = process(self.fixture, config=self.config)
         assert result1 == result2
+
+# [2026-06-08] Tests for test_compare
+class TestTestCompare:
+    """Test suite for test_compare — cache invalidation."""
+
+    def setup_method(self):
+        """Setup test fixtures."""
+        self.fixture = {}
+        self.config = {"enabled": True, "debug": False}
+
+    def test_basic_cache_invalidation(self):
+        """Test basic cache invalidation functionality."""
+        result = process(self.fixture, config=self.config)
+        assert result is not None
+        assert result.get("status") == "success"
+
+    def test_cache_invalidation_with_empty_input(self):
+        """Test cache invalidation with empty input."""
+        result = process({}, config=self.config)
+        assert result is not None
+
+    def test_cache_invalidation_error_handling(self):
+        """Test cache invalidation error handling."""
+        with pytest.raises(ValueError):
+            process(None, config=self.config)
+
+    def test_cache_invalidation_caching(self):
+        """Test cache invalidation caching behavior."""
+        result1 = process(self.fixture, config=self.config)
+        result2 = process(self.fixture, config=self.config)
+        assert result1 == result2
